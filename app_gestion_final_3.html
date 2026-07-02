@@ -504,22 +504,7 @@ table.diff td.new{background:#DCFCE7;color:var(--g);font-weight:700}
       <div class="api-config" style="margin-top:10px">
         <label>Tasas BCV — Express Cambiario</label>
         <div style="background:var(--pb);border-radius:8px;padding:12px 14px;margin-bottom:10px">
-          <div style="font-size:9px;font-weight:700;color:var(--p);text-transform:uppercase;margin-bottom:6px">📡 Sincronizar Tasa BCV desde Core SIRWEB</div>
-          <p style="font-size:9px;color:var(--td);margin-bottom:8px">
-            Obtiene la tasa BCV oficial directamente del sistema Core de Seguros La Fe y la registra automáticamente en la tabla de tasas del mes actual.
-          </p>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-primary" style="font-size:10px" onclick="sincronizarBcvCore()">📡 Sincronizar Tasa BCV (Core)</button>
-            <select id="bcv-core-mes" style="font-size:10px;padding:4px 8px;border:1px solid var(--br);border-radius:6px;background:var(--s)">
-              <option value="">-- Mes a registrar --</option>
-              <option>Enero</option><option>Febrero</option><option>Marzo</option>
-              <option>Abril</option><option>Mayo</option><option>Junio</option>
-              <option>Julio</option><option>Agosto</option><option>Septiembre</option>
-              <option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
-            </select>
-          </div>
-          <div id="bcv-core-status" style="margin-top:8px"></div>
-        </div>
+          <div style="font-size:9px;font-weight:700;color:var(--p);text-transform:uppercase;margin-bottom:6px">📥 Cargar archivo de tasas BCV (.xls)</div>
           <p style="font-size:9px;color:var(--td);margin-bottom:8px">
             Sube el archivo del BCV con una hoja por fecha (formato DDMMAAAA). El sistema detecta la tasa "USD — Bs./M.E. Venta (ASK)"
             de cada día y calcula automáticamente el promedio, mínimo, máximo y días hábiles por mes.
@@ -1361,37 +1346,6 @@ function initApp(){
   renderBcvTable();
   // Sincronizar con API
   checkApiStatus();
-  // ── Sincronización automática de Tasa BCV desde Core al iniciar ──
-  // Se ejecuta silenciosamente en segundo plano después del login.
-  // Actualiza la tasa del mes actual sin interrumpir al usuario.
-  setTimeout(function(){
-    var MESES_ORDER=['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-      'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-    var mesActual = MESES_ORDER[new Date().getMonth()];
-    var token  = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MjcyNzQwNDQsImV4cCI6MTg4NDk1NDA0NCwiZGF0YSI6eyJpZF9lbXByZXNhIjoiNSJ9fQ.0iTA_WjZ5_PYgYz31m7EAxaK5exAtOX6J9i4DG9M9Jc';
-    var entidad= 'LAFE-LOCAL';
-    var apiUrl = 'https://apislf.seguroslafe.com:13333/api/v1/data.geo';
-    fetch(apiUrl,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({data:'GENTasaBCV',entidad:entidad,token:token})
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      if(!data||data.responseCode!==200||!data.responseData||!data.responseData.length) return;
-      var tasa = parseFloat(data.responseData[0].mt_tasa);
-      if(!tasa||isNaN(tasa)) return;
-      if(!STATE.bcvRates[mesActual]) STATE.bcvRates[mesActual]={avg:0,min:0,max:0,dias:0,usdt:0};
-      // Solo actualizar si la tasa del Core es más reciente o no existe
-      STATE.bcvRates[mesActual].avg = tasa;
-      try{ localStorage.setItem('slf_bcv_rates',JSON.stringify(STATE.bcvRates)); }catch(e){}
-      sincronizarBcvConMeses();
-      renderBcvTable();
-      loadMonthsList();
-      showToast('📡 Tasa BCV '+mesActual+' actualizada desde Core: Bs. '+tasa.toFixed(2));
-    })
-    .catch(function(){ /* falla silenciosa — el usuario puede sincronizar manualmente */ });
-  }, 2000); // esperar 2s para que la UI termine de cargar
 }
 
 function persistMonths(){
@@ -2527,70 +2481,6 @@ function guardarTasasBcv(){
 // en Código.gs, que a su vez consulta Binance P2P). Completa el campo USDT
 // de cada mes ya existente en la tabla, sin que el usuario tenga que
 // escribir nada manualmente.
-// ── Sincronizar Tasa BCV desde Core SIRWEB ────────────────────────
-function sincronizarBcvCore(){
-  var statusEl = document.getElementById('bcv-core-status');
-  var mesSelect = document.getElementById('bcv-core-mes');
-  var mes = mesSelect ? mesSelect.value : '';
-
-  if(!mes){
-    // Si no seleccionó mes, usar el mes actual
-    var MESES_ORDER=['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-      'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-    mes = MESES_ORDER[new Date().getMonth()];
-    if(mesSelect) mesSelect.value = mes;
-  }
-
-  if(statusEl) statusEl.innerHTML =
-    '<p style="font-size:10px;color:var(--td)">⏳ Consultando tasa BCV al Core SIRWEB...</p>';
-
-  var token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MjcyNzQwNDQsImV4cCI6MTg4NDk1NDA0NCwiZGF0YSI6eyJpZF9lbXByZXNhIjoiNSJ9fQ.0iTA_WjZ5_PYgYz31m7EAxaK5exAtOX6J9i4DG9M9Jc';
-  var entidad = 'LAFE-LOCAL';
-  var apiUrl  = 'https://apislf.seguroslafe.com:13333/api/v1/data.geo';
-
-  fetch(apiUrl, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({data:'GENTasaBCV', entidad:entidad, token:token})
-  })
-  .then(function(resp){ return resp.json(); })
-  .then(function(data){
-    if(!data || data.responseCode !== 200 || !data.responseData || !data.responseData.length){
-      throw new Error('Respuesta inesperada del Core: '+(data.responseNotification||'sin datos'));
-    }
-    var tasa = parseFloat(data.responseData[0].mt_tasa);
-    if(!tasa || isNaN(tasa)){
-      throw new Error('Tasa BCV inválida: '+data.responseData[0].mt_tasa);
-    }
-
-    // Registrar en STATE.bcvRates para el mes seleccionado
-    if(!STATE.bcvRates[mes]) STATE.bcvRates[mes] = {avg:0,min:0,max:0,dias:0,usdt:0};
-    STATE.bcvRates[mes].avg = tasa;
-
-    // Persistir
-    try{ localStorage.setItem('slf_bcv_rates', JSON.stringify(STATE.bcvRates)); }catch(e){}
-    var actualizados = sincronizarBcvConMeses();
-    renderBcvTable();
-    loadMonthsList();
-
-    if(statusEl) statusEl.innerHTML =
-      '<div class="alert ok"><span class="alert-icon">✅</span>'
-      +'<strong>Tasa BCV registrada: Bs. '+tasa.toLocaleString('es-VE',{minimumFractionDigits:4})+' — '+mes+'</strong><br>'
-      +'<span style="font-size:10px">Fuente: Core SIRWEB · GENTasaBCV · '
-      +(actualizados.length?'Sincronizada con balances: '+actualizados.join(', '):'Sin balances cargados para ese mes')
-      +'</span></div>';
-
-    showToast('✅ Tasa BCV '+mes+': Bs. '+tasa.toFixed(4)+' (Core SIRWEB)');
-  })
-  .catch(function(err){
-    if(statusEl) statusEl.innerHTML =
-      '<div class="alert warn"><span class="alert-icon">⚠️</span>'
-      +'<strong>No se pudo obtener la tasa del Core</strong><br>'
-      +'<span style="font-size:10px">'+err.message+'. Verifica la conexión al Core SIRWEB o ingresa la tasa manualmente.</span>'
-      +'</div>';
-    showToast('Error al consultar Core: '+err.message);
-  });
-}
 
 function sincronizarUsdt(){
   var statusEl = document.getElementById('usdt-sync-status');
