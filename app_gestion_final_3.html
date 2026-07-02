@@ -280,6 +280,13 @@ table.diff td.new{background:#DCFCE7;color:var(--g);font-weight:700}
   </div>
 
   <div class="sb-group">
+    <button class="sb-main" onclick="toggleSbGroup('sb-cartera')">🗂️ Cartera<span class="sb-arrow">▸</span></button>
+    <div class="sb-sub" id="sb-cartera">
+      <button class="sb-item" onclick="showTab('cartera-composicion',this)">📊 Composición de Cartera</button>
+    </div>
+  </div>
+
+  <div class="sb-group">
     <button class="sb-main" onclick="toggleSbGroup('sb-dashboard')">📊 Dashboard<span class="sb-arrow">▸</span></button>
     <div class="sb-sub" id="sb-dashboard">
       <button class="sb-item" onclick="showTab('dashboard',this)">📈 Dashboard Contable</button>
@@ -662,6 +669,29 @@ table.diff td.new{background:#DCFCE7;color:var(--g);font-weight:700}
   </div>
 </div>
 
+<!-- ══ TAB: CARTERA — COMPOSICIÓN ══ -->
+<div class="pane" id="pane-cartera-composicion">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <div>
+      <h2 style="font-size:15px;font-weight:800;color:var(--ink2)">📊 Composición de Cartera</h2>
+      <p style="font-size:9px;color:var(--td);margin-top:2px">Fuente: Core SIRWEB · Solo pólizas en USD · Actualizado en tiempo real</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="cartera-ramo-filtro" style="font-size:10px;padding:5px 10px;border:1px solid var(--br);border-radius:6px;background:var(--s);color:var(--ink2)">
+        <option value="">Todos los ramos</option>
+        <option value="41">Funerario</option>
+        <option value="40">Vida</option>
+        <option value="50">Acc. Personales</option>
+        <option value="26">RC Vehículos</option>
+      </select>
+      <button class="btn btn-primary" style="font-size:10px" onclick="renderCarteraComposicion()">🔄 Actualizar</button>
+    </div>
+  </div>
+  <div id="cartera-composicion-body">
+    <div class="empty-state"><div class="ei">📡</div><div class="et">Cargando datos del Core...</div></div>
+  </div>
+</div>
+
 <!-- ══ TAB: DASHBOARD ══ -->
 <div class="pane" id="pane-dashboard" style="padding:0;height:calc(100vh - 110px);flex-direction:column">
   <div style="flex-shrink:0;background:var(--ink2);padding:8px 16px;display:flex;align-items:center;gap:10px">
@@ -1005,6 +1035,7 @@ function showTab(name, btn){
   if(name==='kpis-view') renderKpisView();
   if(name==='ajustes') initAjustesTab();
   if(name==='tasas') renderTasasConsulta();
+  if(name==='cartera-composicion') renderCarteraComposicion();
 }
 
 // Expande/colapsa un grupo del menú lateral. Si se abre uno, cierra los demás
@@ -3357,7 +3388,459 @@ function exportConfig(){
   a.click();
 }
 
-// ── Exportar todos los datos del sistema a un archivo JSON ──────────
+// ══════════════════════════════════════════════════════════════════
+// MÓDULO: COMPOSICIÓN DE CARTERA — Core SIRWEB
+// ══════════════════════════════════════════════════════════════════
+var _carteraCache = null; // cache de datos para no re-consultar en filtros
+
+function renderCarteraComposicion(){
+  var body = document.getElementById('cartera-composicion-body');
+  if(!body) return;
+
+  var RAMO_FILTRO = (document.getElementById('cartera-ramo-filtro')||{}).value || '';
+
+  // Constantes
+  var TOKEN   = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3MjcyNzQwNDQsImV4cCI6MTg4NDk1NDA0NCwiZGF0YSI6eyJpZF9lbXByZXNhIjoiNSJ9fQ.0iTA_WjZ5_PYgYz31m7EAxaK5exAtOX6J9i4DG9M9Jc';
+  var ENTIDAD = 'LAFE-LOCAL';
+  var API_APP = 'https://apislf.seguroslafe.com:13333/api/v1/data.app';
+
+  // Colores ramos
+  var RAMOS = {
+    '41': {lbl:'Funerario',        col:'#0D7A4E'},
+    '40': {lbl:'Vida',             col:'#4B2D8F'},
+    '50': {lbl:'Acc. Personales',  col:'#B07A00'},
+    '26': {lbl:'RC Vehículos',     col:'#8B1A1A'},
+  };
+  var BANCOS_COL = ['#4B2D8F','#0D7A4E','#B07A00','#8B1A1A','#1565C0','#6A1B9A','#00695C','#E65100','#558B2F','#37474F','#880E4F'];
+
+  function doRender(todos){
+    // Filtrar por ramo si hay selección
+    var data = RAMO_FILTRO ? todos.filter(function(r){ return r.cd_area === RAMO_FILTRO; }) : todos;
+    // Excluir monedas != 1 (USD) y null
+    data = data.filter(function(r){ return r.cd_moneda === '1'; });
+
+    var total = data.length;
+    if(!total){
+      body.innerHTML='<div class="empty-state"><div class="ei">📭</div><div class="et">Sin registros para el filtro seleccionado</div></div>';
+      return;
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────
+    function groupBy(arr, fn){
+      var m={};
+      arr.forEach(function(r){ var k=fn(r); m[k]=(m[k]||0)+1; });
+      return m;
+    }
+    function groupSum(arr, keyFn, valFn){
+      var m={};
+      arr.forEach(function(r){ var k=keyFn(r); m[k]=(m[k]||0)+(valFn(r)||0); });
+      return m;
+    }
+    function sortDesc(obj){ return Object.entries(obj).sort(function(a,b){ return b[1]-a[1]; }); }
+    function pct(v){ return total>0?(v/total*100).toFixed(1):'0.0'; }
+    function fmtN(n){ return Math.round(n).toLocaleString('es-VE'); }
+    function fmtUSD(n){ return 'USD '+parseFloat(n).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+    // ── Cálculos ─────────────────────────────────────────────────
+    // 1. Individual vs Colectivo
+    var porTipo = groupBy(data, function(r){ return r.tp_registro==='CC'?'Individual':'Colectivo'; });
+
+    // 2. Por Ramo (pólizas únicas)
+    var polizasUnicas = {};
+    data.forEach(function(r){ polizasUnicas[r.cd_area+'_'+r.nu_poliza] = r.cd_area; });
+    var porRamo = {};
+    Object.values(polizasUnicas).forEach(function(cd){ porRamo[cd]=(porRamo[cd]||0)+1; });
+
+    // 3. Grupo Contratante por Ramo
+    var porGrupoRamo = {};
+    data.forEach(function(r){
+      var g = r.cd_grupo_familiar||'Sin grupo';
+      var ra = RAMOS[r.cd_area]?RAMOS[r.cd_area].lbl:r.cd_area;
+      var k = g+'||'+ra;
+      porGrupoRamo[k] = (porGrupoRamo[k]||0)+1;
+    });
+
+    // 4. Pólizas emitidas por año
+    var porAnio = {};
+    data.forEach(function(r){
+      if(r.fe_emision){ var a=r.fe_emision.split('/')[2]; if(a) porAnio[a]=(porAnio[a]||0)+1; }
+    });
+
+    // 5. Prima cobrada mensual Ene-Jun 2026 (cobradas)
+    var cobradas = data.filter(function(r){ return r.st_cobro==='Cobrado' && r.fe_cobro; });
+    var primaMensual = {};
+    var MESES_LABEL = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
+    cobradas.forEach(function(r){
+      var parts = r.fe_cobro.split('/');
+      if(parts.length===3 && parts[2]==='2026'){
+        var k = parts[1]+'/2026';
+        primaMensual[k] = (primaMensual[k]||0) + parseFloat(r.mt_recibo||0);
+      }
+    });
+
+    // 6. Forma de pago (banco)
+    var porBanco = groupBy(data, function(r){ return r.de_banco||'Sin banco'; });
+
+    // 7. Pendientes por mes
+    var pendientes = data.filter(function(r){ return r.st_cobro==='Pendiente'; });
+    var pendMeses = {
+      'Jun 2026': 0, 'May 2026': 0, 'Abr 2026': 0,
+      'Mar 2026': 0, 'Feb 2026': 0, 'Ene 2026': 0, 'Dic 2025 o más': 0
+    };
+    pendientes.forEach(function(r){
+      var f = r.fe_desde_recibo;
+      if(!f){ pendMeses['Dic 2025 o más']++; return; }
+      var p = f.split('/'); if(p.length<3) return;
+      var mm=p[0], yy=p[2];
+      var key = yy+'-'+mm;
+      if(key >= '2026-06') pendMeses['Jun 2026']++;
+      else if(key >= '2026-05') pendMeses['May 2026']++;
+      else if(key >= '2026-04') pendMeses['Abr 2026']++;
+      else if(key >= '2026-03') pendMeses['Mar 2026']++;
+      else if(key >= '2026-02') pendMeses['Feb 2026']++;
+      else if(key >= '2026-01') pendMeses['Ene 2026']++;
+      else pendMeses['Dic 2025 o más']++;
+    });
+
+    // 8. Antigüedad
+    var antiguedad = {'0-2 años':0,'3-5 años':0,'6-10 años':0,'11-15 años':0,'16+ años':0};
+    data.forEach(function(r){
+      var a=parseInt(r.nu_anios_antiguedad||0);
+      if(a<=2) antiguedad['0-2 años']++;
+      else if(a<=5) antiguedad['3-5 años']++;
+      else if(a<=10) antiguedad['6-10 años']++;
+      else if(a<=15) antiguedad['11-15 años']++;
+      else antiguedad['16+ años']++;
+    });
+
+    // 9. Distribución por sexo
+    var porSexo = groupBy(data, function(r){ return r.cd_sexo==='M'?'Masculino':r.cd_sexo==='F'?'Femenino':'Sin dato'; });
+
+    // ── SVG Helpers ───────────────────────────────────────────────
+    function barH(items, colors, maxVal, h){
+      // Barras horizontales SVG
+      var BAR_H=22, PAD=6;
+      var totalH = items.length*(BAR_H+PAD)+20;
+      var svg='<svg viewBox="0 0 360 '+totalH+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:400px">';
+      items.forEach(function(item, idx){
+        var lbl=item[0], val=item[1];
+        var w = maxVal>0 ? Math.round((val/maxVal)*220) : 0;
+        var y = idx*(BAR_H+PAD)+10;
+        var col = Array.isArray(colors)?colors[idx%colors.length]:colors;
+        svg+='<rect x="0" y="'+y+'" width="220" height="'+BAR_H+'" rx="4" fill="#F0EDF8"/>';
+        svg+='<rect x="0" y="'+y+'" width="'+w+'" height="'+BAR_H+'" rx="4" fill="'+col+'"/>';
+        svg+='<text x="228" y="'+(y+15)+'" font-size="9" fill="#4A4260">'+lbl+'</text>';
+        svg+='<text x="'+(w>30?w-4:w+4)+'" y="'+(y+15)+'" font-size="9" fill="'+(w>30?'#fff':col)+'" text-anchor="'+(w>30?'end':'start')+'">'+val.toLocaleString('es-VE')+'</text>';
+      });
+      svg+='</svg>';
+      return svg;
+    }
+
+    function donut(segments, cx, cy, r){
+      // Donut chart SVG
+      var total2=segments.reduce(function(s,x){return s+x.v;},0);
+      if(!total2) return '';
+      var svg='<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:160px;height:160px">';
+      var angle=-Math.PI/2, ri=r*0.55;
+      segments.forEach(function(seg){
+        var sweep=(seg.v/total2)*Math.PI*2;
+        var x1=cx+r*Math.cos(angle), y1=cy+r*Math.sin(angle);
+        var x2=cx+r*Math.cos(angle+sweep), y2=cy+r*Math.sin(angle+sweep);
+        var xi1=cx+ri*Math.cos(angle), yi1=cy+ri*Math.sin(angle);
+        var xi2=cx+ri*Math.cos(angle+sweep), yi2=cy+ri*Math.sin(angle+sweep);
+        var large=sweep>Math.PI?1:0;
+        svg+='<path d="M'+x1.toFixed(1)+','+y1.toFixed(1)
+          +' A'+r+','+r+' 0 '+large+',1 '+x2.toFixed(1)+','+y2.toFixed(1)
+          +' L'+xi2.toFixed(1)+','+yi2.toFixed(1)
+          +' A'+ri+','+ri+' 0 '+large+',0 '+xi1.toFixed(1)+','+yi1.toFixed(1)
+          +' Z" fill="'+seg.col+'" opacity="0.9"/>';
+        angle+=sweep;
+      });
+      svg+='<text x="'+cx+'" y="'+(cy-6)+'" text-anchor="middle" font-size="13" font-weight="700" fill="#2D1860">'+total2.toLocaleString('es-VE')+'</text>';
+      svg+='<text x="'+cx+'" y="'+(cy+10)+'" text-anchor="middle" font-size="8" fill="#8A7EAA">registros</text>';
+      svg+='</svg>';
+      return svg;
+    }
+
+    function lineChart(items, col){
+      if(items.length<2) return '';
+      var vals=items.map(function(x){return x[1];});
+      var maxV=Math.max.apply(null,vals)||1, minV=Math.min.apply(null,vals);
+      var W=320,H=100,PX=30,PY=12;
+      var pts=items.map(function(x,i){
+        return {
+          x: PX+i*(W-PX*2)/(items.length-1),
+          y: PY+(1-(x[1]-minV)/(maxV-minV||1))*(H-PY*2),
+          lbl:x[0], v:x[1]
+        };
+      });
+      var path=pts.map(function(p,i){return (i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1);}).join(' ');
+      var area=path+' L'+pts[pts.length-1].x.toFixed(1)+','+(H-PY)+' L'+pts[0].x.toFixed(1)+','+(H-PY)+' Z';
+      var svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%">';
+      svg+='<path d="'+area+'" fill="'+col+'" opacity="0.12"/>';
+      svg+='<path d="'+path+'" fill="none" stroke="'+col+'" stroke-width="2.5" stroke-linejoin="round"/>';
+      pts.forEach(function(p){
+        svg+='<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3.5" fill="'+col+'" stroke="#fff" stroke-width="1.5"/>';
+        svg+='<text x="'+p.x.toFixed(1)+'" y="'+(H-2)+'" text-anchor="middle" font-size="7.5" fill="#8A7EAA">'+p.lbl+'</text>';
+        svg+='<text x="'+p.x.toFixed(1)+'" y="'+(p.y-6).toFixed(1)+'" text-anchor="middle" font-size="7.5" fill="'+col+'" font-weight="700">'+p.v.toLocaleString('es-VE',{minimumFractionDigits:0,maximumFractionDigits:0})+'</text>';
+      });
+      svg+='</svg>';
+      return svg;
+    }
+
+    // ── Construir HTML ────────────────────────────────────────────
+    var h='';
+
+    // ── KPI CARDS TOP ─────────────────────────────────────────────
+    var totalCobradas=cobradas.length;
+    var totalPendientes=pendientes.length;
+    var totalPrimaCobrada=Object.values(primaMensual).reduce(function(s,v){return s+v;},0);
+    var polUnicas=Object.keys(polizasUnicas).length;
+
+    h+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">';
+    [
+      {lbl:'Total Registros',   val:fmtN(total),          sub:'Recibos USD',          col:'#4B2D8F', ico:'📋'},
+      {lbl:'Pólizas Únicas',    val:fmtN(polUnicas),       sub:'Nu. póliza distintas', col:'#0D7A4E', ico:'📄'},
+      {lbl:'Cobradas',          val:fmtN(totalCobradas),   sub:pct(totalCobradas)+'% del total', col:'#0D7A4E', ico:'✅'},
+      {lbl:'Pendientes',        val:fmtN(totalPendientes), sub:pct(totalPendientes)+'% del total', col:'#B0190F', ico:'⚠️'},
+    ].forEach(function(k){
+      h+='<div style="background:var(--s);border:1px solid var(--br);border-radius:10px;padding:14px 16px;border-left:4px solid '+k.col+'">'
+        +'<div style="font-size:8px;font-weight:700;color:var(--td);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">'+k.ico+' '+k.lbl+'</div>'
+        +'<div style="font-size:22px;font-weight:900;color:'+k.col+';line-height:1">'+k.val+'</div>'
+        +'<div style="font-size:9px;color:var(--td);margin-top:3px">'+k.sub+'</div>'
+        +'</div>';
+    });
+    h+='</div>';
+
+    // ── FILA 1: Individual/Colectivo + Por Ramo ────────────────────
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">';
+
+    // Individual vs Colectivo (donut)
+    h+='<div style="background:var(--s);border:1px solid var(--br);border-radius:10px;padding:14px 16px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--p);text-transform:uppercase;margin-bottom:10px">Tipo de Póliza</div>'
+      +'<div style="display:flex;align-items:center;gap:12px">'
+      +donut([
+        {v:porTipo['Individual']||0, col:'#4B2D8F'},
+        {v:porTipo['Colectivo']||0,  col:'#0D7A4E'},
+      ], 100, 100, 70)
+      +'<div>'
+      +'<div style="margin-bottom:6px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#4B2D8F;margin-right:5px"></span>'
+      +'<span style="font-size:10px">Individual (CC)</span><br>'
+      +'<span style="font-size:14px;font-weight:800;color:#4B2D8F">'+(porTipo['Individual']||0).toLocaleString('es-VE')+'</span>'
+      +'<span style="font-size:9px;color:var(--td)"> · '+pct(porTipo['Individual']||0)+'%</span></div>'
+      +'<div><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#0D7A4E;margin-right:5px"></span>'
+      +'<span style="font-size:10px">Colectivo (CM)</span><br>'
+      +'<span style="font-size:14px;font-weight:800;color:#0D7A4E">'+(porTipo['Colectivo']||0).toLocaleString('es-VE')+'</span>'
+      +'<span style="font-size:9px;color:var(--td)"> · '+pct(porTipo['Colectivo']||0)+'%</span></div>'
+      +'</div></div></div>';
+
+    // Por Ramo (barras)
+    var ramoItems = Object.entries(porRamo).map(function(e){
+      return [RAMOS[e[0]]?RAMOS[e[0]].lbl:e[0], e[1], RAMOS[e[0]]?RAMOS[e[0]].col:'#888'];
+    }).sort(function(a,b){return b[1]-a[1];});
+    var maxRamo = ramoItems[0]?ramoItems[0][1]:1;
+    h+='<div style="background:var(--s);border:1px solid var(--br);border-radius:10px;padding:14px 16px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--p);text-transform:uppercase;margin-bottom:10px">Pólizas Únicas por Ramo</div>';
+    ramoItems.forEach(function(ri){
+      var w=Math.round(ri[1]/maxRamo*100);
+      h+='<div style="margin-bottom:8px">'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:3px">'
+        +'<span style="font-size:10px;color:var(--tm)"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+ri[2]+';margin-right:5px"></span>'+ri[0]+'</span>'
+        +'<span style="font-size:10px;font-weight:700;color:'+ri[2]+'">'+ri[1].toLocaleString('es-VE')+'</span></div>'
+        +'<div style="height:8px;background:var(--s2);border-radius:4px">'
+        +'<div style="height:100%;width:'+w+'%;background:'+ri[2]+';border-radius:4px"></div></div></div>';
+    });
+    h+='</div>';
+
+    // Distribución por sexo (donut)
+    h+='<div style="background:var(--s);border:1px solid var(--br);border-radius:10px;padding:14px 16px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--p);text-transform:uppercase;margin-bottom:10px">Distribución por Sexo</div>'
+      +'<div style="display:flex;align-items:center;gap:12px">'
+      +donut([
+        {v:porSexo['Masculino']||0, col:'#4B2D8F'},
+        {v:porSexo['Femenino']||0,  col:'#E91E8C'},
+        {v:porSexo['Sin dato']||0,  col:'#CCC'},
+      ], 100, 100, 70)
+      +'<div>'
+      +[['Masculino','#4B2D8F'],['Femenino','#E91E8C'],['Sin dato','#CCC']].map(function(s){
+        return '<div style="margin-bottom:5px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+s[1]+';margin-right:5px"></span>'
+          +'<span style="font-size:9px">'+s[0]+'</span><br>'
+          +'<span style="font-size:13px;font-weight:800;color:'+s[1]+'">'+(porSexo[s[0]]||0).toLocaleString('es-VE')+'</span>'
+          +'<span style="font-size:8px;color:var(--td)"> '+pct(porSexo[s[0]]||0)+'%</span></div>';
+      }).join('')
+      +'</div></div></div>';
+
+    h+='</div>'; // cierre fila 1
+
+    // ── FILA 2: Grupo Contratante + Prima Mensual ──────────────────
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">';
+
+    // Grupo Contratante
+    var grupoItems = sortDesc(groupBy(data, function(r){ return r.cd_grupo_familiar||'Sin grupo'; }));
+    var maxGrupo = grupoItems[0]?grupoItems[0][1]:1;
+    var GRUPO_LABEL = {'TCH':'Grupo TCH','TCHP':'Grupo TCHP','N/A':'Individual / Sin grupo','null':'Sin clasificar'};
+    h+='<div style="background:var(--s);border:1px solid var(--br);border-radius:10px;padding:14px 16px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--p);text-transform:uppercase;margin-bottom:10px">Aliado Comercial / Grupo Contratante</div>';
+    grupoItems.forEach(function(gi, idx){
+      var lbl = GRUPO_LABEL[gi[0]]||gi[0];
+      var w = Math.round(gi[1]/maxGrupo*100);
+      var col = ['#4B2D8F','#0D7A4E','#B07A00','#8B1A1A'][idx%4];
+      h+='<div style="margin-bottom:8px">'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:3px">'
+        +'<span style="font-size:10px;color:var(--tm)">'+lbl+'</span>'
+        +'<span style="font-size:10px;font-weight:700;color:'+col+'">'+gi[1].toLocaleString('es-VE')+'<span style="font-size:8px;color:var(--td);font-weight:400"> · '+pct(gi[1])+'%</span></span></div>'
+        +'<div style="height:8px;background:var(--s2);border-radius:4px">'
+        +'<div style="height:100%;width:'+w+'%;background:'+col+';border-radius:4px"></div></div></div>';
+    });
+    h+='</div>';
+
+    // Prima Mensual Ene-Jun 2026
+    var mesesOrden = ['01/2026','02/2026','03/2026','04/2026','05/2026','06/2026'];
+    var primaMesesItems = mesesOrden.map(function(m){
+      var mn = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun'}[m.substring(0,2)];
+      return [mn, Math.round(primaMensual[m]||0)];
+    });
+    var totalPrima = primaMesesItems.reduce(function(s,x){return s+x[1];},0);
+    h+='<div style="background:var(--s);border:1px solid var(--br);border-radius:10px;padding:14px 16px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--p);text-transform:uppercase">Prima Cobrada Mensual · Ene–Jun 2026</div>'
+      +'<div style="font-size:11px;font-weight:800;color:#0D7A4E">Total: '+fmtUSD(totalPrima)+'</div></div>'
+      +'<div style="font-size:8px;color:var(--td);margin-bottom:10px">Solo USD · Recibos con estado Cobrado</div>'
+      +lineChart(primaMesesItems, '#4B2D8F')
+      +'</div>';
+
+    h+='</div>'; // cierre fila 2
+
+    // ── FILA 3: Pólizas por Año + Antigüedad ──────────────────────
+    h+='<div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px">';
+
+    // Por año de emisión
+    var anioItems = Object.entries(porAnio)
+      .filter(function(e){ return e[0] && e[0]!=='undefined'; })
+      .sort(function(a,b){ return a[0]-b[0]; });
+    h+='<div style="background:var(--s);border:1px solid var(--br);border-radius:10px;padding:14px 16px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--p);text-transform:uppercase;margin-bottom:10px">Pólizas Emitidas por Año (Fecha de Emisión)</div>'
+      +lineChart(anioItems, '#0D7A4E')
+      +'</div>';
+
+    // Antigüedad
+    var antItems = Object.entries(antiguedad);
+    var maxAnt = Math.max.apply(null, antItems.map(function(x){return x[1];}));
+    var antCols = ['#E8F5E9','#A5D6A7','#4CAF50','#2E7D32','#1B5E20'];
+    h+='<div style="background:var(--s);border:1px solid var(--br);border-radius:10px;padding:14px 16px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--p);text-transform:uppercase;margin-bottom:10px">Antigüedad de Cartera</div>';
+    antItems.forEach(function(ai, idx){
+      var w=maxAnt?Math.round(ai[1]/maxAnt*100):0;
+      h+='<div style="margin-bottom:7px">'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:2px">'
+        +'<span style="font-size:9px;color:var(--tm)">'+ai[0]+'</span>'
+        +'<span style="font-size:9px;font-weight:700;color:#2E7D32">'+ai[1].toLocaleString('es-VE')+'</span></div>'
+        +'<div style="height:7px;background:var(--s2);border-radius:4px">'
+        +'<div style="height:100%;width:'+w+'%;background:'+antCols[idx]+';border-radius:4px"></div></div></div>';
+    });
+    h+='</div>';
+
+    h+='</div>'; // cierre fila 3
+
+    // ── FILA 4: Pendientes + Bancos ────────────────────────────────
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">';
+
+    // Pendientes por mes
+    var pendOrden = ['Jun 2026','May 2026','Abr 2026','Mar 2026','Feb 2026','Ene 2026','Dic 2025 o más'];
+    var pendColors = ['#E53935','#E53935','#EF6C00','#EF6C00','#F57F17','#F57F17','#B71C1C'];
+    var maxPend = Math.max.apply(null, pendOrden.map(function(k){return pendMeses[k]||0;}));
+    h+='<div style="background:var(--s);border:1px solid var(--br);border-radius:10px;padding:14px 16px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--p);text-transform:uppercase">Pendientes de Pago por Mes</div>'
+      +'<div style="font-size:11px;font-weight:800;color:#B0190F">'+pendientes.length.toLocaleString('es-VE')+' pólizas</div></div>';
+    pendOrden.forEach(function(k, idx){
+      var v = pendMeses[k]||0;
+      var w = maxPend?Math.round(v/maxPend*100):0;
+      h+='<div style="margin-bottom:7px">'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:2px">'
+        +'<span style="font-size:9px;color:var(--tm)">'+k+'</span>'
+        +'<span style="font-size:10px;font-weight:700;color:'+pendColors[idx]+'">'+v.toLocaleString('es-VE')+'<span style="font-size:8px;color:var(--td)"> · '+( totalPendientes>0?(v/totalPendientes*100).toFixed(1):0)+'%</span></span></div>'
+        +'<div style="height:8px;background:var(--s2);border-radius:4px">'
+        +'<div style="height:100%;width:'+w+'%;background:'+pendColors[idx]+';border-radius:4px"></div></div></div>';
+    });
+    h+='</div>';
+
+    // Bancos (forma de pago)
+    var bancoItems = sortDesc(porBanco).slice(0,11);
+    var maxBanco = bancoItems[0]?bancoItems[0][1]:1;
+    h+='<div style="background:var(--s);border:1px solid var(--br);border-radius:10px;padding:14px 16px">'
+      +'<div style="font-size:9px;font-weight:700;color:var(--p);text-transform:uppercase;margin-bottom:10px">Forma de Pago — Banco Cobrador</div>';
+    bancoItems.forEach(function(bi, idx){
+      var lbl = bi[0].replace('Banco ','');
+      var w = Math.round(bi[1]/maxBanco*100);
+      var col = BANCOS_COL[idx%BANCOS_COL.length];
+      h+='<div style="margin-bottom:6px">'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:2px">'
+        +'<span style="font-size:9px;color:var(--tm)">'+lbl+'</span>'
+        +'<span style="font-size:9px;font-weight:700;color:'+col+'">'+bi[1].toLocaleString('es-VE')+'<span style="font-size:8px;color:var(--td)"> '+pct(bi[1])+'%</span></span></div>'
+        +'<div style="height:6px;background:var(--s2);border-radius:3px">'
+        +'<div style="height:100%;width:'+w+'%;background:'+col+';border-radius:3px"></div></div></div>';
+    });
+    h+='</div>';
+
+    h+='</div>'; // cierre fila 4
+
+    // ── Nota al pie ───────────────────────────────────────────────
+    h+='<div style="padding:8px 4px;border-top:1px solid var(--br);font-size:8px;color:var(--td);margin-top:4px">'
+      +'📡 Fuente: Core SIRWEB · Endpoint: carteraPrimaCobradaYPendienteCobranza · '
+      +'Solo moneda USD (cd_moneda=1) · '
+      +(RAMO_FILTRO?'Filtro: '+(RAMOS[RAMO_FILTRO]?RAMOS[RAMO_FILTRO].lbl:RAMO_FILTRO)+' · ':'Todos los ramos · ')
+      +total.toLocaleString('es-VE')+' registros procesados'
+      +'</div>';
+
+    body.innerHTML = h;
+  }
+
+  // ── Consulta al Core ─────────────────────────────────────────────
+  // Rango amplio Ene 2025 – Jul 2026 para cubrir pendientes históricos
+  if(_carteraCache){
+    body.innerHTML='<div style="padding:8px;font-size:9px;color:var(--td)">⏳ Aplicando filtro...</div>';
+    setTimeout(function(){ doRender(_carteraCache); }, 50);
+    return;
+  }
+
+  body.innerHTML='<div style="display:flex;align-items:center;gap:10px;padding:30px;justify-content:center">'
+    +'<div style="width:20px;height:20px;border:2px solid var(--br);border-top-color:var(--p);border-radius:50%;animation:spin .8s linear infinite"></div>'
+    +'<span style="font-size:11px;color:var(--td)">Consultando Core SIRWEB... puede tardar unos segundos</span></div>';
+
+  // Agregar animación spin si no existe
+  if(!document.getElementById('cartera-spin-style')){
+    var st=document.createElement('style');
+    st.id='cartera-spin-style';
+    st.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(st);
+  }
+
+  fetch('https://apislf.seguroslafe.com:13333/api/v1/data.app',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      data:'carteraPrimaCobradaYPendienteCobranza',
+      fe_desde:'01/01/2025',
+      fe_hasta:'31/07/2026',
+      entidad:ENTIDAD,
+      token:TOKEN
+    })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(resp){
+    if(!resp||resp.responseCode!==200||!resp.responseData){
+      throw new Error('Error del Core: '+(resp.responseNotification||'sin datos'));
+    }
+    _carteraCache = resp.responseData;
+    doRender(_carteraCache);
+  })
+  .catch(function(err){
+    body.innerHTML='<div class="alert warn"><span class="alert-icon">⚠️</span>'
+      +'<strong>No se pudo conectar al Core SIRWEB</strong><br>'
+      +'<span style="font-size:10px">'+err.message+'. Verifica que estás en la red de Seguros La Fe.</span></div>';
+  });
+}
 function exportarDatos(){
   try{
     var datos = {
