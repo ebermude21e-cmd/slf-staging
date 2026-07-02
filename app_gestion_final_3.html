@@ -557,31 +557,7 @@ table.diff td.new{background:#DCFCE7;color:var(--g);font-weight:700}
         </p>
       </div>
 
-      <!-- ══ RESPALDO Y RESTAURACIÓN ══ -->
-      <div class="api-config" style="margin-top:18px;border-top:1px solid var(--br);padding-top:16px">
-        <label style="font-size:11px;font-weight:700;color:var(--ink2)">💾 Respaldo y Restauración de Datos</label>
-        <p style="font-size:9px;color:var(--td);margin-top:4px;margin-bottom:12px">
-          Exporta todos los datos del sistema (balances, tasas BCV/USDT, sobregiros y ajustes) a un archivo JSON.
-          Usa ese archivo para restaurar en cualquier otra computadora o navegador sin tocar la consola.
-        </p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div style="background:var(--gb);border:1px solid #A8D5B8;border-radius:10px;padding:14px 16px">
-            <div style="font-size:9px;font-weight:700;color:#0D7A4E;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">⬇ Exportar datos</div>
-            <p style="font-size:9px;color:#0D7A4E;margin-bottom:10px">Descarga un archivo <strong>.json</strong> con todos los datos actuales de este navegador.</p>
-            <button class="btn btn-success" style="width:100%;font-size:10px" onclick="exportarDatos()">⬇ Descargar respaldo</button>
-            <div id="export-status" style="margin-top:6px;font-size:9px;color:var(--td)"></div>
-          </div>
-          <div style="background:var(--pb);border:1px solid var(--br);border-radius:10px;padding:14px 16px">
-            <div style="font-size:9px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">⬆ Restaurar datos</div>
-            <p style="font-size:9px;color:var(--td);margin-bottom:10px">Carga un archivo <strong>.json</strong> exportado previamente. <strong>Reemplaza</strong> los datos actuales.</p>
-            <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importarDatos(event)">
-            <button class="btn btn-primary" style="width:100%;font-size:10px" onclick="document.getElementById('import-file-input').click()">⬆ Cargar respaldo</button>
-            <div id="import-status" style="margin-top:6px;font-size:9px;color:var(--td)"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="btn-row" style="margin-top:16px">
+      <div class="btn-row">
         <button class="btn btn-primary" onclick="testConnection()">🔌 Probar conexión</button>
         <button class="btn btn-success" onclick="initSystem()">🚀 Inicializar sistema (primera vez)</button>
         <button class="btn btn-ghost" onclick="exportConfig()">⬇ Exportar configuración</button>
@@ -3354,84 +3330,6 @@ function exportConfig(){
   a.href=URL.createObjectURL(blob);
   a.download='slf_config_'+new Date().toISOString().slice(0,10)+'.json';
   a.click();
-}
-
-// ── Exportar todos los datos del sistema a un archivo JSON ──────────
-function exportarDatos(){
-  try{
-    var datos = {
-      version:    '1.0.0',
-      exportado:  new Date().toISOString(),
-      equipo:     (STATE.user && STATE.user.name) || 'Admin',
-      months:     JSON.parse(localStorage.getItem('slf_months')     || '[]'),
-      bcv_rates:  JSON.parse(localStorage.getItem('slf_bcv_rates')  || '{}'),
-      sobregiros: JSON.parse(localStorage.getItem('slf_sobregiros') || '{}'),
-      ajustes:    JSON.parse(localStorage.getItem('slf_ajustes')    || '[]'),
-      kpis:       JSON.parse(localStorage.getItem('slf_kpis')       || '[]'),
-      accounts:   JSON.parse(localStorage.getItem('slf_accounts')   || '[]')
-    };
-    var nMeses = datos.months.length;
-    var nTasas = Object.keys(datos.bcv_rates).length;
-    var fecha  = new Date().toISOString().slice(0,10);
-    var blob   = new Blob([JSON.stringify(datos,null,2)],{type:'application/json'});
-    var a      = document.createElement('a');
-    a.href     = URL.createObjectURL(blob);
-    a.download = 'SLF_Respaldo_'+fecha+'.json';
-    a.click();
-    var st = document.getElementById('export-status');
-    if(st) st.innerHTML = '✅ Respaldo generado · '+nMeses+' mes(es) · '+nTasas+' tasa(s) · '+fecha;
-    showToast('Respaldo descargado — '+nMeses+' balance(s), '+nTasas+' mes(es) de tasas');
-  }catch(e){
-    showToast('Error al exportar: '+e.message);
-  }
-}
-
-// ── Importar datos desde un archivo JSON exportado previamente ──────
-function importarDatos(event){
-  var file = event.target.files[0];
-  if(!file){ return; }
-  var st = document.getElementById('import-status');
-  if(st) st.innerHTML = '⏳ Cargando...';
-  var reader = new FileReader();
-  reader.onload = function(e){
-    try{
-      var datos = JSON.parse(e.target.result);
-      // Validar que el archivo tiene la estructura correcta
-      if(!datos.months && !datos.bcv_rates){
-        throw new Error('El archivo no es un respaldo válido del sistema SLF');
-      }
-      // Confirmación antes de sobrescribir
-      var mesesActuales = JSON.parse(localStorage.getItem('slf_months')||'[]').length;
-      var msg = '¿Restaurar los datos del respaldo?\n\n'
-        +'El respaldo contiene:\n'
-        +'  · '+( datos.months||[]).length+' balance(s) cargado(s)\n'
-        +'  · '+Object.keys(datos.bcv_rates||{}).length+' mes(es) de tasas BCV/USDT\n'
-        +'  · Exportado: '+(datos.exportado||'fecha desconocida')+'\n'
-        +'  · Por: '+(datos.equipo||'desconocido')+'\n\n'
-        +(mesesActuales>0?'⚠️ Este navegador tiene '+mesesActuales+' balance(s) que serán REEMPLAZADOS.\n':'')
-        +'¿Continuar?';
-      if(!confirm(msg)){
-        if(st) st.innerHTML = 'Restauración cancelada.';
-        event.target.value='';
-        return;
-      }
-      // Guardar en localStorage
-      if(datos.months)     localStorage.setItem('slf_months',      JSON.stringify(datos.months));
-      if(datos.bcv_rates)  localStorage.setItem('slf_bcv_rates',   JSON.stringify(datos.bcv_rates));
-      if(datos.sobregiros) localStorage.setItem('slf_sobregiros',  JSON.stringify(datos.sobregiros));
-      if(datos.ajustes)    localStorage.setItem('slf_ajustes',     JSON.stringify(datos.ajustes));
-      if(datos.kpis)       localStorage.setItem('slf_kpis',        JSON.stringify(datos.kpis));
-      if(datos.accounts)   localStorage.setItem('slf_accounts',    JSON.stringify(datos.accounts));
-      if(st) st.innerHTML = '✅ Datos restaurados correctamente — recargando...';
-      showToast('✅ Datos restaurados — recargando sistema');
-      setTimeout(function(){ location.reload(); }, 1500);
-    }catch(ex){
-      if(st) st.innerHTML = '❌ Error: '+ex.message;
-      showToast('Error al importar: '+ex.message);
-    }
-    event.target.value='';
-  };
-  reader.readAsText(file);
 }
 
 function addBcvRow(){
