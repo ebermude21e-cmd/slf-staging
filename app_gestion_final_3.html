@@ -721,34 +721,101 @@ table.diff td.new{background:#DCFCE7;color:var(--g);font-weight:700}
 
 <!-- ══ TESORERÍA: FLUJO DE CAJA ══ -->
 <div class="pane" id="pane-tesoreria-flujo">
+
+  <!-- HEADER STICKY -->
   <div id="tf-header" style="position:sticky;top:0;z-index:20;background:var(--s);padding-bottom:10px;border-bottom:1px solid var(--br);margin-bottom:14px">
+
+    <!-- Título + botones de carga -->
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px">
       <div>
-        <h2 style="font-size:15px;font-weight:800;color:var(--ink2);margin:0">📊 Flujo de Caja — Gestión de Tesorería</h2>
-        <p style="font-size:9px;color:var(--td);margin:2px 0 0">Primas cobradas menos egresos operacionales · En USD · Tasa BCV promedio mensual</p>
+        <h2 style="font-size:15px;font-weight:800;color:var(--ink2);margin:0">📊 Flujo de Caja — Mayo 2026</h2>
+        <p style="font-size:9px;color:var(--td);margin:2px 0 0">Egresos operacionales vs Prima cobrada · En USD · Fuente: Mayor Analítico + Registros manuales</p>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-        <input type="file" id="tf-file-mayor"     accept=".xls,.xlsx" style="display:none" onchange="tfCargarMayor(event)">
-        <input type="file" id="tf-file-siniestros" accept=".xlsx,.xls" style="display:none" onchange="tfCargarSiniestros(event)">
-        <input type="file" id="tf-file-nomina"    accept=".xlsx,.xls" style="display:none" onchange="tfCargarNomina(event)">
+        <input type="file" id="tf-file-mayor"      accept=".xls,.xlsx" style="display:none" onchange="tfCargarMayor(event)">
+        <input type="file" id="tf-file-retenciones" accept=".xlsx,.xls" style="display:none" onchange="tfCargarRetenciones(event)">
         <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-mayor').click()">📂 Mayor Analítico</button>
-        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-siniestros').click()">📂 Siniestros</button>
-        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-nomina').click()">📂 Nómina USD</button>
+        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-retenciones').click()">📂 Retenciones</button>
+        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="tfAbrirModalDivisas()">💱 Divisas / Nómina USD</button>
         <button class="btn btn-primary" style="font-size:9px;padding:4px 10px" onclick="tfExportar()">⬇ Excel</button>
-        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="tfModoAcum()" id="tf-btn-acum">ACUM.</button>
+        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="tfLimpiarDatos()" title="Limpiar todos los datos cargados">🗑 Limpiar</button>
       </div>
     </div>
-    <!-- Selector de mes -->
-    <div id="tf-mes-selector" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:8px;color:var(--td)">MES:</span>
-    </div>
-    <!-- Carga status -->
-    <div id="tf-load-status" style="margin-top:6px;font-size:9px;color:var(--td)"></div>
-  </div>
+
+    <!-- Status de carga -->
+    <div id="tf-load-status" style="font-size:9px;color:var(--td);min-height:14px;margin-bottom:6px"></div>
+
+    <!-- Panel de estado de carga por módulo -->
+    <div id="tf-carga-estado" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px"></div>
+
+  </div><!-- /tf-header -->
+
   <!-- KPI Cards -->
   <div id="tf-kpis" style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px"></div>
-  <!-- Tabla maestra + gráficos -->
+
+  <!-- Cuerpo tabla + gráficos -->
   <div id="tf-body"></div>
+
+</div><!-- /pane-tesoreria-flujo -->
+
+<!-- ══ MODAL: REGISTRO DE COMPRA DE DIVISAS Y NÓMINA USD ══ -->
+<div id="tf-divisas-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;align-items:center;justify-content:center">
+  <div style="background:var(--s);border-radius:16px;padding:0;width:680px;max-width:97vw;max-height:90vh;box-shadow:0 24px 64px rgba(0,0,0,.4);display:flex;flex-direction:column">
+    <!-- Header -->
+    <div style="padding:16px 20px 12px;border-bottom:1px solid var(--br);display:flex;justify-content:space-between;align-items:center;background:var(--ink2);border-radius:16px 16px 0 0">
+      <div>
+        <div style="font-size:13px;font-weight:800;color:#fff">💱 Compra de Divisas y Nómina en USD — Mayo 2026</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.6);margin-top:2px">Registra la tasa de compra y los conceptos pagados en USD. El sistema calcula la fluctuación automáticamente.</div>
+      </div>
+      <button onclick="document.getElementById('tf-divisas-modal').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:15px;cursor:pointer;border-radius:6px;padding:2px 8px">✕</button>
+    </div>
+    <!-- Cuerpo del modal -->
+    <div style="padding:18px 20px;overflow-y:auto;flex:1">
+
+      <!-- Sección: Tasas de cambio para Mayo -->
+      <div style="background:var(--s2);border-radius:10px;padding:14px 16px;margin-bottom:16px;border-left:4px solid var(--p)">
+        <div style="font-size:10px;font-weight:700;color:var(--p);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">📊 Tasas de Cambio — Mayo 2026</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div>
+            <label style="font-size:9px;color:var(--td);font-weight:600;display:block;margin-bottom:4px">Tasa BCV Promedio Mayo (Bs.)</label>
+            <input type="number" id="tf-div-tasa-bcv" step="0.01" placeholder="515.73" value="515.73"
+              style="width:100%;padding:7px 10px;border:1px solid var(--br);border-radius:7px;font-size:12px;background:var(--s);font-weight:700;color:var(--p)"
+              oninput="tfDivRecalcular()">
+            <div style="font-size:8px;color:var(--td);margin-top:3px">Promedio exacto del mes (hoja Tasas Cambiarias)</div>
+          </div>
+          <div>
+            <label style="font-size:9px;color:var(--td);font-weight:600;display:block;margin-bottom:4px">Tasa Paralela / USDT Compra (Bs.)</label>
+            <input type="number" id="tf-div-tasa-usdt" step="0.01" placeholder="660.00"
+              style="width:100%;padding:7px 10px;border:1px solid var(--br);border-radius:7px;font-size:12px;background:var(--s);font-weight:700;color:#B07A00"
+              oninput="tfDivRecalcular()">
+            <div style="font-size:8px;color:var(--td);margin-top:3px">Tasa de mercado del día de la compra de divisas</div>
+          </div>
+          <div style="background:var(--s);border-radius:8px;padding:10px;border:1px solid var(--br)">
+            <div style="font-size:8px;color:var(--td);font-weight:600;margin-bottom:4px">DIFERENCIAL CALCULADO</div>
+            <div id="tf-div-spread" style="font-size:16px;font-weight:900;color:#B0190F">—</div>
+            <div id="tf-div-spread-pct" style="font-size:9px;color:var(--td);margin-top:2px">% sobre tasa BCV</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección: Conceptos pagados en USD -->
+      <div style="font-size:10px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">💵 Conceptos Pagados en USD</div>
+      <div id="tf-div-conceptos" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+      <button onclick="tfDivAgregarConcepto()" class="btn btn-ghost" style="font-size:9px;padding:4px 12px;margin-bottom:16px">+ Agregar concepto</button>
+
+      <!-- Resumen calculado -->
+      <div id="tf-div-resumen" style="background:var(--ink2);border-radius:10px;padding:14px 16px;display:none">
+        <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,.6);margin-bottom:8px;text-transform:uppercase">RESUMEN DEL CÁLCULO</div>
+        <div id="tf-div-resumen-body" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+      </div>
+
+    </div>
+    <!-- Footer -->
+    <div style="padding:14px 20px;border-top:1px solid var(--br);display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" style="font-size:10px" onclick="document.getElementById('tf-divisas-modal').style.display='none'">Cancelar</button>
+      <button class="btn btn-primary" style="font-size:11px;padding:7px 20px" onclick="tfDivGuardar()">💾 Guardar y Calcular Fluctuación</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══ TESORERÍA: GASTOS FIJOS Y VARIABLES ══ -->
@@ -4038,50 +4105,35 @@ var TF = {
   TASAS: {},
   ESTRUCTURA: [
     { id:'ingr', lbl:'INGRESOS', tipo:'grupo', hijos:[
-      { id:'prima_ind',  lbl:'Prima Cartera Individual', tipo:'item', signo:1 },
-      { id:'prima_polar',lbl:'Prima Colectivo Polar', tipo:'subgrupo', hijos:[
-        { id:'polar_apc', lbl:'APC — Alimentos Polar Comercial', tipo:'item', signo:1 },
-        { id:'polar_cp',  lbl:'CP  — Cervecería Polar C.A.',     tipo:'item', signo:1 },
-        { id:'polar_soc', lbl:'SOCIBELA',                         tipo:'item', signo:1 },
-        { id:'polar_pcv', lbl:'PCV — Pepsi-Cola Venezuela',      tipo:'item', signo:1 },
-      ]},
+      { id:'prima_ind',  lbl:'Prima Cobrada (balance contable)', tipo:'item', signo:1 },
     ]},
     { id:'total_ingr', lbl:'✦ TOTAL INGRESOS', tipo:'total_ingr' },
     { id:'egr', lbl:'EGRESOS', tipo:'grupo', hijos:[
-      { id:'sin', lbl:'Siniestros Pagados', tipo:'subgrupo', hijos:[
-        { id:'sin_ind_fun', lbl:'Individuales — Funerario',       tipo:'item', signo:-1 },
-        { id:'sin_ind_vid', lbl:'Individuales — Vida',            tipo:'item', signo:-1 },
-        { id:'sin_ind_ap',  lbl:'Individuales — Acc. Personales', tipo:'item', signo:-1 },
-        { id:'sin_ind_rcv', lbl:'Individuales — RC Vehículos',    tipo:'item', signo:-1 },
-        { id:'sin_polar_apc',lbl:'Polar — APC',                   tipo:'item', signo:-1 },
-        { id:'sin_polar_cp', lbl:'Polar — CP',                    tipo:'item', signo:-1 },
-        { id:'sin_polar_soc',lbl:'Polar — SOCIBELA',              tipo:'item', signo:-1 },
-        { id:'sin_polar_pcv',lbl:'Polar — PCV',                   tipo:'item', signo:-1 },
-      ]},
+      { id:'sin_tot',    lbl:'Siniestros Pagados (Mayor Analítico)', tipo:'item', signo:-1 },
       { id:'nom_bs', lbl:'Nómina Personal (Bs.→USD)', tipo:'subgrupo', hijos:[
-        { id:'nom_sueldos', lbl:'Sueldos y Salarios',    tipo:'item', signo:-1 },
-        { id:'nom_cesta',   lbl:'Cesta Ticket',           tipo:'item', signo:-1 },
-        { id:'nom_bonos',   lbl:'Bonificaciones',         tipo:'item', signo:-1 },
-        { id:'nom_otros',   lbl:'Otros Gastos Personal',  tipo:'item', signo:-1 },
+        { id:'nom_sueldos', lbl:'Sueldos y Salarios',              tipo:'item', signo:-1 },
+        { id:'nom_cesta',   lbl:'Cesta Ticket',                     tipo:'item', signo:-1 },
+        { id:'nom_bonos',   lbl:'Bonificaciones / Vacaciones',      tipo:'item', signo:-1 },
+        { id:'nom_otros',   lbl:'Otros Gastos de Personal',         tipo:'item', signo:-1 },
       ]},
+      { id:'comis_prod',  lbl:'Comisiones de Producción',          tipo:'item', signo:-1 },
       { id:'gto_ops', lbl:'Gastos Operativos (Bs.→USD)', tipo:'subgrupo', hijos:[
-        { id:'comis_prod',  lbl:'Comisiones de Producción',  tipo:'item', signo:-1 },
-        { id:'proc_datos',  lbl:'Procesamiento de Datos',    tipo:'item', signo:-1 },
-        { id:'serv_bas',    lbl:'Servicios Básicos',         tipo:'item', signo:-1 },
-        { id:'hon_prof',    lbl:'Honorarios Profesionales',  tipo:'item', signo:-1 },
-        { id:'publicidad',  lbl:'Publicidad',                tipo:'item', signo:-1 },
-        { id:'inmuebles',   lbl:'Gastos de Inmuebles',       tipo:'item', signo:-1 },
-        { id:'relaciones',  lbl:'Relaciones Públicas',       tipo:'item', signo:-1 },
-        { id:'otros_adm',   lbl:'Otros Administrativos',     tipo:'item', signo:-1 },
+        { id:'proc_datos',  lbl:'Procesamiento de Datos',           tipo:'item', signo:-1 },
+        { id:'serv_bas',    lbl:'Servicios Básicos',                tipo:'item', signo:-1 },
+        { id:'hon_prof',    lbl:'Honorarios Profesionales',         tipo:'item', signo:-1 },
+        { id:'publicidad',  lbl:'Publicidad',                       tipo:'item', signo:-1 },
+        { id:'inmuebles',   lbl:'Gastos de Inmuebles',              tipo:'item', signo:-1 },
+        { id:'relaciones',  lbl:'Relaciones Públicas',              tipo:'item', signo:-1 },
+        { id:'otros_adm',   lbl:'Otros Gastos Administrativos',     tipo:'item', signo:-1 },
       ]},
-      { id:'impuestos', lbl:'Impuestos y Contribuciones', tipo:'item', signo:-1 },
-      { id:'com_banc',  lbl:'Comisiones Bancarias',        tipo:'item', signo:-1 },
+      { id:'impuestos',   lbl:'Impuestos y Contribuciones',        tipo:'item', signo:-1 },
+      { id:'com_banc',    lbl:'Comisiones Bancarias',              tipo:'item', signo:-1 },
       { id:'gto_div', lbl:'Gastos en Divisas (USD)', tipo:'subgrupo', hijos:[
-        { id:'nom_usd',   lbl:'Nómina Gerencial USD',   tipo:'item', signo:-1 },
-        { id:'prov_usd',  lbl:'Proveedores USD',         tipo:'item', signo:-1 },
-        { id:'fluct_cam', lbl:'Fluctuación Cambiaria',   tipo:'item', signo:-1 },
+        { id:'nom_usd',    lbl:'Nómina Gerencial USD',             tipo:'item', signo:-1 },
+        { id:'prov_usd',   lbl:'Proveedores USD',                  tipo:'item', signo:-1 },
+        { id:'fluct_cam',  lbl:'Fluctuación Cambiaria',            tipo:'item', signo:-1 },
       ]},
-      { id:'gto_pres', lbl:'Gastos de Presidencia', tipo:'item', signo:-1 },
+      { id:'gto_pres',    lbl:'Gastos de Presidencia',             tipo:'item', signo:-1 },
     ]},
     { id:'total_egr', lbl:'✦ TOTAL EGRESOS',      tipo:'total_egr' },
     { id:'saldo_fc',  lbl:'💰 SALDO FLUJO DE CAJA', tipo:'saldo'   },
@@ -4099,77 +4151,39 @@ function tfInit(){
   _tfLeerPrimasApp();
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// MÓDULO TESORERÍA — REGLAS CONTABLES DEFINITIVAS (v2.0)
+// Validadas contra el Flujo de Caja de Contabilidad Mayo 2026
+// Aplican para todos los meses del año
+// ══════════════════════════════════════════════════════════════════════
+//
+// R1.  PRIMA:        mes.totals.a / tasa_bcv_promedio
+// R2.  SINIESTROS:   3 321 01 01 + 3 301 01 01 + Nueve Once (3 321 09 01 01 01, EGRESO auto)
+// R3.  COMISIONES:   3 381 01 15 todos con debe>0
+// R4.  NÓM.PERS.:    3 381 01 01 todos con debe>0 (ítem exclusivo)
+// R5.  GASTO ADM:    3 381 01 excl. 01/02/04/06/07/15
+// R6.  IMPUESTOS:    3 381 01 02 excl. previsiones (tp='' con "Previsión" en desc)
+// R7.  RETENCIONES:  carga manual del reporte (cuentas pasivo no en mayor egresos)
+// R8.  COM.BANC:     3 381 02 todos con debe>0
+// R9.  NÓM.GERENTES: registro manual modal Divisas
+// R10. DIFERENCIAL:  (NomGer+ProvUSD) × (USDT-BCV)/BCV — USDT del Excel/Paralelo
+// R11. PROV.USD:     registro manual modal Divisas
+// ══════════════════════════════════════════════════════════════════════
+
 function _tfLeerPrimasApp(){
-  // ── Lee la prima cobrada desde el Dashboard de Contabilidad (STATE.months)
-  // Separación exacta:
-  //   prima_ind = primas cobradas individuales (Vida + Funerario Ind. + AP + RCV)
-  //   prima_polar FC = cuenta 5 521 01 01 03 02 (Funerario Colectivo)
-  //
-  // Fuente primaria: saldoMap crudo guardado en slf_saldos_crudos por cuenta
-  // Fuente secundaria: mes.ramos (suma por ramo sin separar individual/colectivo)
-  // Tasa: BCV promedio del mes (STATE.bcvRates[mes].avg)
-
+  // R1: Prima = mes.totals.a (Bs.) / tasa_bcv_promedio del mes
+  // Fuente: balance de comprobación cargado en el app
   if(!STATE.months||!STATE.months.length) return;
-
-  // Leer saldoMap crudo de localStorage (guardado al confirmar cada balance)
-  var saldosRaw={};
-  try{ saldosRaw=JSON.parse(localStorage.getItem('slf_saldos_crudos')||'{}'); }catch(e){}
-
-  // Cuentas de prima colectiva Polar (Funerario Colectivo)
-  // campo fc_a = cuentas:['5 521 01 01 03 02']
-  var CTA_FC_A = '5 521 01 01 03 02';
-
   STATE.months.forEach(function(mes){
-    var mn=(mes.month||'').split(' ')[0];
-    if(!mn) return;
+    var mn=(mes.month||'').split(' ')[0]; if(!mn) return;
     if(!TF.datos[mn]) TF.datos[mn]={valores:{},asientos:{}};
-
-    // Tasa BCV promedio del mes — fuente única para conversión Bs.→USD
-    var tasa = (STATE.bcvRates&&STATE.bcvRates[mn]&&STATE.bcvRates[mn].avg)
-               ? STATE.bcvRates[mn].avg : TF.TASAS[mn]||1;
-    TF.TASAS[mn] = tasa; // asegurar sincronía
-
-    var V = TF.datos[mn].valores;
-    var r = mes.ramos||{};
-
-    // ── Prima TOTAL del balance (en Bs.) ──────────────────────────────────
-    var totalA_Bs = (mes.totals||{}).a || 0;
-
-    // ── Prima Colectivo Funerario (Polar en Balance) desde saldoMap crudo ──
-    var smMes = saldosRaw[mn]||{};
-    var fc_a_Bs = 0;
-    // valorCuenta aplica signo tipo-5 → el saldo crudo es negativo, se invierte
-    // El saldoMap guarda el crudo, así que invertimos manualmente (tipo 5 ingreso)
-    var crudoFC = smMes[CTA_FC_A]||0;
-    // Tipo 5 → valor = -crudoMensual (crudoMensual = saldoActual - saldoAnterior)
-    // Para el flujo de caja usamos el movimiento positivo (lo que se cobró)
-    fc_a_Bs = Math.abs(crudoFC); // saldo crudo del mes (movimiento)
-
-    // ── Prima Individual = Total − Polar contable ─────────────────────────
-    // Si ya se cargó el archivo Polar externo → usar esa distribución por empresa
-    // Si no → usar la separación del balance
-    var priPolarExt = (V['polar_apc']||0)+(V['polar_cp']||0)+
-                      (V['polar_soc']||0)+(V['polar_pcv']||0);
-
-    if(priPolarExt>0){
-      // Polar ya cargado con distribución por empresa → recalcular individual
-      // Prima individual = Total − Prima Polar externa (en USD)
-      V['prima_ind'] = (totalA_Bs/tasa) - priPolarExt;
-      if(V['prima_ind']<0) V['prima_ind']=0;
-    } else {
-      // Polar no cargado aún → separar del balance usando fc_a
-      // Prima ind = (Total Bs − fc_a Bs) / tasa
-      // Prima polar colectivo provisional = fc_a / tasa
-      var priInd_Bs = totalA_Bs - fc_a_Bs;
-      V['prima_ind'] = priInd_Bs/tasa;
-      if(V['prima_ind']<0) V['prima_ind']=totalA_Bs/tasa; // fallback
-      // Si no hay distribución por empresa, dejar polar_total como referencia
-      V['_prima_polar_contable'] = fc_a_Bs/tasa; // referencia interna
-    }
-
-    // Guardar tasa usada para referencia en el dashboard
-    V['_tasa_bcv'] = tasa;
-    V['_total_prima_bs'] = totalA_Bs;
+    var tasa=(STATE.bcvRates&&STATE.bcvRates[mn]&&STATE.bcvRates[mn].avg)
+             ?STATE.bcvRates[mn].avg:TF.TASAS[mn]||1;
+    TF.TASAS[mn]=tasa;
+    var totalA_Bs=(mes.totals||{}).a||0;
+    TF.datos[mn].valores['prima_ind']=totalA_Bs/tasa;
+    TF.datos[mn].valores['_tasa_bcv']=tasa;
+    TF.datos[mn].valores['_prima_bs']=totalA_Bs;
   });
 }
 
@@ -4240,9 +4254,9 @@ function _tfRenderKPIs(){
   }
   var sl=ti-te; var ef=ti>0?te/ti*100:0;
   var pPol=_tfGet('polar_apc')+_tfGet('polar_cp')+_tfGet('polar_soc')+_tfGet('polar_pcv');
-  var sPol=_tfGet('sin_polar_apc')+_tfGet('sin_polar_cp')+_tfGet('sin_polar_soc')+_tfGet('sin_polar_pcv');
+  var sPol=_tfGet('sin_tot');
   var pInd=_tfGet('prima_ind');
-  var sInd=_tfGet('sin_ind_fun')+_tfGet('sin_ind_vid')+_tfGet('sin_ind_ap')+_tfGet('sin_ind_rcv');
+  var sInd=_tfGet('sin_tot');
   var srPol=pPol>0?sPol/pPol*100:0; var srInd=pInd>0?sInd/pInd*100:0;
   // Tasa de referencia: para ACUM mostrar la del último mes, para mes específico la del mes
   var tasaRef = 0;
@@ -4273,8 +4287,8 @@ function _tfRenderKPIs(){
     card('Total Egresos',usdFmt(te),'Siniestros + Nómina + Gastos + Divisas','#8B1A1A','💸')+
     card('Saldo Flujo de Caja',usdFmt(sl),sl>=0?'✅ Superávit operacional':'❌ Déficit operacional',sl>=0?'#0D7A4E':'#B0190F','🏦')+
     card('Índice de Eficiencia',pct(ef),'Egresos / Ingresos × 100',ef<80?'#0D7A4E':ef<100?'#B07A00':'#B0190F','📊')+
-    card('Siniestralidad Polar',pct(srPol),'Siniestros Polar / Prima Polar',srPol<60?'#0D7A4E':srPol<80?'#B07A00':'#B0190F','🔷')+
-    card('Siniestralidad Ind.',pct(srInd),'Siniestros Ind. / Prima Individual',srInd<60?'#0D7A4E':srInd<80?'#B07A00':'#B0190F','🔹');
+    card('Siniestralidad Total',pct(srTot||0),'Siniestros / Prima cobrada',srTot<60?'#0D7A4E':srTot<80?'#B07A00':'#B0190F','📊')+
+    card('Costo Total s/Prima',pct((sTot+(_tfGet('comis_prod')))/pInd*100||0),'(Sin+Comis) / Prima',((sTot+_tfGet('comis_prod'))/pInd*100)<80?'#0D7A4E':'#B0190F','💹');
 }
 
 function _tfRenderTabla(){
@@ -4583,9 +4597,10 @@ function tfToggleCheck(id,v){
 }
 
 function tfCargarMayor(evt){
+  // ── Mayor Analítico de Egresos — Reglas R2–R8 validadas ──────────
   var file=evt.target.files[0]; if(!file) return;
   var status=document.getElementById('tf-load-status');
-  if(status) status.innerHTML='⏳ Procesando Mayor Analítico...';
+  if(status) status.innerHTML='⏳ Procesando Mayor Analítico <b>'+file.name+'</b>...';
   var reader=new FileReader();
   reader.onload=function(e){
     try{
@@ -4597,232 +4612,358 @@ function tfCargarMayor(evt){
       var MNUM={'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo',
                 '06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre',
                 '10':'Octubre','11':'Noviembre','12':'Diciembre'};
+
+      // Leer fila a fila: detectar cabecera de cuenta y registros de asiento
       raw.forEach(function(row){
-        if(!row||row.length<15) return;
+        if(!row||row.length<14) return;
+        // Cabecera de cuenta: col[1]='Cuenta Contable'
         if(String(row[1]).trim()==='Cuenta Contable'&&String(row[3]).trim()){
           var p=String(row[3]).split(',');
           nomAct=p[0].trim(); ctaAct=p[1]?p[1].trim():''; return;
         }
+        // Registro de asiento: col[2] = nro de 12 dígitos
         var nro=String(row[2]||'').trim();
         if(nro.length!==12||!/^\d+$/.test(nro)) return;
         var seq=parseInt(nro.substring(6));
         var mes=MNUM[nro.substring(4,6)]; if(!mes) return;
-        var tp=String(row[10]||'').trim();
-        var nro_doc=String(row[11]||'').trim();
-        var desc=String(row[12]||'').trim();
-        var debe=parseFloat(row[13])||0;
+        var debe=parseFloat(row[13])||0; if(debe<=0) return;
         if(!porMes[mes]) porMes[mes]=[];
-        porMes[mes].push({cta:ctaAct,nombre:nomAct,nro:nro,seq:seq,tp:tp,nro_doc:nro_doc,desc:desc,debe:debe,auto:seq>1000});
+        porMes[mes].push({
+          cta:ctaAct, nombre:nomAct, nro:nro, seq:seq, mes:mes,
+          tp:String(row[10]||'').trim(),
+          nro_doc:String(row[11]||'').trim(),
+          desc:String(row[12]||'').trim(),
+          debe:debe, auto:seq>1000
+        });
       });
 
+      // Clasificar asientos por mes y categoría
       Object.keys(porMes).forEach(function(mes){
-        var tasa=TF.TASAS[mes]||1;
+        var tasa=(STATE.bcvRates&&STATE.bcvRates[mes]&&STATE.bcvRates[mes].avg)||TF.TASAS[mes]||1;
+        TF.TASAS[mes]=tasa;
         if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
         var V=TF.datos[mes].valores; var A=TF.datos[mes].asientos;
-        // ── REGLA DE ORO: solo partidas que generan salida real de dinero ──
-        // Nómina: TODOS los asientos (manuales seq≤1000 y automáticos)
-        // Egresos operativos: SOLO automáticos (seq>1000) tipo EGRESO o NOTAS DE DEBITO
-        // Excluir: reservas técnicas, amortizaciones, provisiones, reclasificaciones
-        var CATS=['nom_sueldos','nom_cesta','nom_bonos','nom_otros',
-                  'comis_prod','proc_datos','serv_bas','hon_prof','publicidad',
-                  'inmuebles','relaciones','impuestos','com_banc','otros_adm','gto_pres'];
-        CATS.forEach(function(k){V[k]=0;A[k]=[];});
 
-        // Tasa BCV promedio mensual — fuente única de conversión Bs.→USD
-        // Se lee de STATE.bcvRates que contiene el promedio exacto del mes
-        var tasaBCV = (STATE.bcvRates&&STATE.bcvRates[mes]&&STATE.bcvRates[mes].avg)
-                      ? STATE.bcvRates[mes].avg : tasa;
-        TF.TASAS[mes] = tasaBCV; // sincronizar
+        // Reset categorías del mayor (preservar valores manuales: nom_usd, prov_usd, fluct_cam, ret, imp_excel)
+        var CATS_MA=['sin_tot',
+                     'nom_sueldos','nom_cesta','nom_bonos','nom_otros',
+                     'comis_prod','impuestos','com_banc',
+                     'proc_datos','serv_bas','hon_prof','publicidad',
+                     'inmuebles','relaciones','otros_adm','gto_pres'];
+        CATS_MA.forEach(function(k){V[k]=0;A[k]=[];});
 
         porMes[mes].forEach(function(a){
-          var cta=a.cta;
-          var usd=a.debe/tasaBCV; // SIEMPRE tasa promedio BCV del mes
-          function add(cat){
-            if(usd<=0) return;
+          // Normalización: '33210101030100000000000' → '33210101030100' (mismo que '3 321 01 01 03 01' sin espacios ni ceros)
+          function norm(c){ return c.replace(/\s/g,'').replace(/0+$/,''); }
+          var ctaN=norm(a.cta);
+          function mc(cat){ return ctaN===norm(cat)||ctaN.startsWith(norm(cat)); }
+          function add(cat,lbl){
+            var usd=a.debe/tasa;
             V[cat]=(V[cat]||0)+usd;
             (A[cat]=A[cat]||[]).push({
-              nro:a.nro, tp:a.tp, nro_doc:a.nro_doc,
-              desc:a.desc.substring(0,90), usd:usd,
-              bs:a.debe, seq:a.seq, tasa:tasaBCV
+              nro:a.nro,tp:a.tp,nro_doc:a.nro_doc,
+              desc:a.desc.substring(0,100),
+              usd:usd,bs:a.debe,seq:a.seq,tasa:tasa,
+              auto:a.auto,nombre:a.nombre||lbl||''
             });
           }
 
-          // ── NÓMINA PERSONAL (Bs.) — manuales Y automáticos ─────────────
-          // Sueldos y salarios: 33810101010
-          if(cta.startsWith('33810101010')){if(a.debe>0)add('nom_sueldos');return;}
-          // Cesta Ticket: 33810101080100
-          if(cta.startsWith('33810101080100')){if(a.debe>0)add('nom_cesta');return;}
-          // Vacaciones, Bono Vacacional, Bonif., Bono Ejecutivo, Utilidades
-          if(cta.startsWith('33810101020')||cta.startsWith('33810101030')||
-             cta.startsWith('33810101040')||cta.startsWith('33810101050')||
-             cta.startsWith('33810101060')){if(a.debe>0)add('nom_bonos');return;}
-          // Resto personal (HCM, seguros, dotación, otros):
-          if(cta.startsWith('33810101')){if(a.debe>0)add('nom_otros');return;}
+          // ── R2: SINIESTROS — TODOS los asientos (manuales+auto) ─────
+          // fi_j+fc_j (3 321 01 01) · api_j (3 321 01 01 01 01) · vida_j (3 301 01 01)
+          // Nueve Once: 3 321 09 01 01 01 solo si es EGRESO automático
+          if(mc('3 321 01 01')||mc('3 301 01 01')){add('sin_tot','Siniestros');return;}
+          if(mc('3 321 09 01 01 01')&&a.auto&&a.tp==='EGRESO'){add('sin_tot','Sin.NueveOnce');return;}
 
-          // ── SOLO EGRESOS AUTOMÁTICOS CON COMPROBANTE A PARTIR DE AQUÍ ──
-          if(!a.auto) return;       // excluir manuales
-          if(a.debe<=0) return;     // solo débitos
-          // Solo EGRESO o NOTAS DE DEBITO = comprobante bancario asociado
-          if(a.tp!=='EGRESO'&&a.tp!=='NOTAS DE DEBITO') return;
+          // ── R4: NÓMINA PERSONAL — TODOS con debe>0 (ítem exclusivo) ─
+          if(mc('3 381 01 01 01')){add('nom_sueldos','Sueldos');return;}
+          if(mc('3 381 01 01 08')){add('nom_cesta','CestaTicket');return;}
+          if(mc('3 381 01 01 02')||mc('3 381 01 01 03')||mc('3 381 01 01 04')||
+             mc('3 381 01 01 05')||mc('3 381 01 01 06')){add('nom_bonos','Bonif/Vac');return;}
+          if(mc('3 381 01 01')){add('nom_otros','OtrosPersonal');return;}
 
-          // Parafiscales automáticos (IVSS, FAOV, INCES): 33810102040
-          if(cta.startsWith('33810102040')){add('impuestos');return;}
-          // Comisiones de producción: 33810115
-          if(cta.startsWith('33810115')){add('comis_prod');return;}
-          // Procesamiento de datos: 33810112
-          if(cta.startsWith('33810112')){add('proc_datos');return;}
-          // Servicios básicos: 33810109
-          if(cta.startsWith('33810109')){add('serv_bas');return;}
-          // Honorarios profesionales: 33810111
-          if(cta.startsWith('33810111')){add('hon_prof');return;}
-          // Publicidad: 33810108
-          if(cta.startsWith('33810108')){add('publicidad');return;}
-          // Inmuebles: 33810114
-          if(cta.startsWith('33810114')){add('inmuebles');return;}
-          // Relaciones públicas: 33810110
-          if(cta.startsWith('33810110')){add('relaciones');return;}
-          // Impuestos y contribuciones: Patente, SUDEASEG, IVAE, ISLR, otros
-          if(cta.startsWith('33810102010')||cta.startsWith('33810102020')||
-             cta.startsWith('33810102030')||cta.startsWith('33810102050')||
-             cta.startsWith('33810102060')||cta.startsWith('33810102070')){
-            add('impuestos');return;
+          // ── R8: COMISIONES BANCARIAS — TODOS incl. manuales (NOTAS)──
+          if(mc('3 381 02')){add('com_banc','ComBancaria');return;}
+
+          // ── R3: COMISIONES VENDEDORES — TODOS (manuales+auto) ───────
+          if(mc('3 381 01 15')){add('comis_prod','ComisVendedor');return;}
+
+          // ── R6: IMPUESTOS — excluir provisiones sin comprobante ──────
+          // Provisión: tp==='' y descripción contiene "Previsión/Provision"
+          if(mc('3 381 01 02')){
+            var PK=['PREVISION','PREVISIÓN','PROVISION','PROVISIÓN','REGISTRO DE LAS PREVISIONES',
+                    'REGISTRO DE LAS CONTRIBUCIONES'];
+            var esProv=a.tp===''&&PK.some(function(k){return a.desc.toUpperCase().indexOf(k)>=0;});
+            if(!esProv) add('impuestos','Impuesto');
+            return;
           }
-          // Comisiones bancarias y gastos financieros directos
-          if(cta.startsWith('33810201')||cta.startsWith('33810401')){add('com_banc');return;}
-          // Gastos de Presidencia: 33810116080
-          if(cta.startsWith('33810116080')){add('gto_pres');return;}
-          // Otros gastos admin: resto 33810116, 33810104 (mantenimiento)
-          if(cta.startsWith('33810116')||cta.startsWith('33810104')){add('otros_adm');return;}
+
+          // ── Excluir partidas no monetarias (no salen del banco) ──────
+          if(mc('3 381 04')) return; // fluctuación cambiaria — asiento contable, no bancario
+          if(mc('3 381 06')) return; // depreciación — no es salida de caja
+          if(mc('3 381 07')) return; // provisiones técnicas — no es salida de caja
+
+          // ── R5: GASTOS ADMIN — resto de 3 381 01 ────────────────────
+          if(mc('3 381 01 16 08')){add('gto_pres','Presidencia');return;}
+          if(mc('3 381 01')){add('otros_adm','GtoAdmin');return;}
+          // Gastos directos por ramo: vida_g (3 301 09 01), fi_g (3 321 03 01)
+          if(mc('3 301 09 01')||mc('3 321 03 01')){add('otros_adm','GtoAdmRamo');return;}
         });
       });
+
       _tfLeerPrimasApp();
       try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
-      var mc=Object.keys(porMes).sort();
-      if(status) status.innerHTML='✅ Mayor Analítico cargado: '+mc.join(', ')+' ('+raw.length+' filas)';
-      showToast('Mayor Analítico cargado: '+mc.join(', '));
-      _tfBuildSelector();_tfRenderKPIs();_tfRenderTabla();
+      var mesesCarg=Object.keys(porMes).sort();
+      var totalAs=mesesCarg.reduce(function(s,m){return s+porMes[m].length;},0);
+      if(status) status.innerHTML='✅ Mayor Analítico: <b>'+mesesCarg.join(', ')+'</b> · '+totalAs.toLocaleString()+' asientos clasificados';
+      _tfActualizarEstadoCarga('mayor','✅ Mayor: '+mesesCarg.join(', '));
+      showToast('Mayor Analítico cargado: '+mesesCarg.join(', '));
+      _tfBuildSelector(); _tfRenderKPIs(); _tfRenderTabla();
     }catch(ex){
-      if(status) status.innerHTML='❌ Error: '+ex.message;
+      if(status) status.innerHTML='❌ Error procesando Mayor: '+ex.message;
       showToast('Error: '+ex.message);
+      console.error('tfCargarMayor:', ex);
     }
     evt.target.value='';
   };
   reader.readAsArrayBuffer(file);
 }
 
-function tfCargarSiniestros(evt){
+function tfCargarRetenciones(evt){
+  // R7: Retenciones IVA/ISLR/IAE — carga manual del reporte de retenciones
+  // Las retenciones son cuentas de pasivo (no están en el mayor de egresos)
+  // El archivo debe tener columnas: Mes | Retenciones IVA | ISLR | IAE | Total
   var file=evt.target.files[0]; if(!file) return;
   var status=document.getElementById('tf-load-status');
-  if(status) status.innerHTML='⏳ Procesando Siniestros...';
-  var PPOLAR={1113771:'APC',1113773:'CP',1113774:'SOCIBELA',1113784:'PCV'};
-  var TPOLAR=['alimentos polar','cerveceria polar','asociacion civil para beneficios','pepsi','socibela'];
-  function idEmp(pol,tom){
-    try{var n=parseInt(pol);if(PPOLAR[n])return PPOLAR[n];}catch(e){}
-    var t=String(tom||'').toLowerCase();
-    if(t.indexOf('alimento')>=0)return 'APC';if(t.indexOf('cerveceria')>=0)return 'CP';
-    if(t.indexOf('asociacion')>=0||t.indexOf('socibela')>=0)return 'SOCIBELA';
-    if(t.indexOf('pepsi')>=0)return 'PCV';
-    if(TPOLAR.some(function(p){return t.indexOf(p)>=0;}))return 'OTRO';
-    return null;
-  }
-  var reader=new FileReader();
-  reader.onload=function(e){
-    try{
-      var wb=XLSX.read(e.target.result,{type:'array'});
-      var fname=file.name.toUpperCase();
-      var MMAP={ENERO:'Enero',FEBRERO:'Febrero',MARZO:'Marzo',ABRIL:'Abril',MAYO:'Mayo',
-               JUNIO:'Junio',JULIO:'Julio',AGOSTO:'Agosto',SEPTIEMBRE:'Septiembre',
-               OCTUBRE:'Octubre',NOVIEMBRE:'Noviembre',DICIEMBRE:'Diciembre'};
-      var mes='';
-      Object.keys(MMAP).forEach(function(k){if(fname.indexOf(k)>=0)mes=MMAP[k];});
-      if(!mes){if(status)status.innerHTML='❌ No se detectó el mes en el nombre del archivo';return;}
-      var tasa=TF.TASAS[mes]||1;
-      if(!TF.datos[mes])TF.datos[mes]={valores:{},asientos:{}};
-      var V=TF.datos[mes].valores;
-      ['sin_ind_fun','sin_ind_vid','sin_ind_ap','sin_ind_rcv',
-       'sin_polar_apc','sin_polar_cp','sin_polar_soc','sin_polar_pcv'].forEach(function(k){V[k]=0;});
-      wb.SheetNames.forEach(function(hoja){
-        if(hoja==='RESUMEN'||hoja.indexOf('BDINC')>=0)return;
-        var ws2=wb.Sheets[hoja];
-        var rows=XLSX.utils.sheet_to_json(ws2,{header:1,defval:''});
-        if(!rows||rows.length<2)return;
-        var H=rows[0];
-        function ci(kws){for(var i=0;i<H.length;i++){var h=String(H[i]);if(kws.some(function(k){return h.indexOf(k)>=0;}))return i;}return -1;}
-        var iU=ci(['Siniestros Pagados']),iB=ci(['Monto pagado']),iT=ci(['Tasa Cambio']);
-        var iP=ci(['Numero de p','Número de p']),iTom=ci(['Tomador']),iR=ci(['Ramo de poliza','Ramo de póliza']);
-        if(iU<0&&iB<0)return;
-        for(var r=1;r<rows.length;r++){
-          var row=rows[r]; var usd=0;
-          if(iB>=0&&iT>=0){var bs2=parseFloat(row[iB])||0;var td=parseFloat(row[iT])||0;if(bs2>0&&td>0)usd=bs2/td;else if(bs2>0)usd=bs2/tasa;}
-          if(usd<=0&&iU>=0)usd=parseFloat(row[iU])||0;
-          if(usd<=0)continue;
-          var pol=row[iP>=0?iP:0]; var tom=row[iTom>=0?iTom:''];
-          var ramo=String(row[iR>=0?iR:0]||'').toLowerCase();
-          var emp=idEmp(pol,tom);
-          if(emp){var catM={'APC':'sin_polar_apc','CP':'sin_polar_cp','SOCIBELA':'sin_polar_soc','PCV':'sin_polar_pcv'};var cat=catM[emp];if(cat)V[cat]=(V[cat]||0)+usd;}
-          else{
-            if(ramo.indexOf('fun')>=0||ramo.indexOf('servicio')>=0)V['sin_ind_fun']=(V['sin_ind_fun']||0)+usd;
-            else if(ramo.indexOf('vida')>=0)V['sin_ind_vid']=(V['sin_ind_vid']||0)+usd;
-            else if(ramo.indexOf('accid')>=0)V['sin_ind_ap']=(V['sin_ind_ap']||0)+usd;
-            else if(ramo.indexOf('civil')>=0||ramo.indexOf('vehic')>=0)V['sin_ind_rcv']=(V['sin_ind_rcv']||0)+usd;
-            else V['sin_ind_fun']=(V['sin_ind_fun']||0)+usd;
-          }
-        }
-      });
-      try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
-      if(status)status.innerHTML='✅ Siniestros '+mes+' cargados correctamente';
-      showToast('Siniestros '+mes+' procesados');
-      _tfBuildSelector();_tfRenderKPIs();_tfRenderTabla();
-    }catch(ex){if(status)status.innerHTML='❌ '+ex.message;}
-    evt.target.value='';
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function tfCargarNomina(evt){
-  var file=evt.target.files[0]; if(!file) return;
-  var status=document.getElementById('tf-load-status');
-  if(status)status.innerHTML='⏳ Procesando Nómina USD...';
-  var USDT_RATES={};
-  try{var r=STATE.bcvRates||{};TF.MESES.forEach(function(m){if(r[m]&&r[m].usdt)USDT_RATES[m]=r[m].usdt;});}catch(e){}
+  if(status) status.innerHTML='⏳ Cargando Retenciones...';
   var reader=new FileReader();
   reader.onload=function(e){
     try{
       var wb=XLSX.read(e.target.result,{type:'array'});
       var ws=wb.Sheets[wb.SheetNames[0]];
       var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-      var MESES_L=['Enero','Febrero','Marzo','Abril','Mayo','Junio'];
-      var MCOLS=[4,5,6,7,8,9];
-      var nomina={}; var prov={};
-      MESES_L.forEach(function(m){nomina[m]=0;prov[m]=0;});
-      rows.forEach(function(row,r){
-        var nombre=String(row[1]||'').trim();
-        if(!nombre||nombre==='Total Nomina'||nombre==='Total Proveedores'||nombre==='Pago a Proveedores') return;
-        var sec=r>=6&&r<=33?'nom':r>=35&&r<=43?'prov':'';
-        if(!sec)return;
-        MESES_L.forEach(function(m,j){
-          var v=parseFloat(row[MCOLS[j]])||0;
-          if(sec==='nom')nomina[m]+=v; else prov[m]+=v;
-        });
+      var MMAP={ENERO:'Enero',FEBRERO:'Febrero',MARZO:'Marzo',ABRIL:'Abril',MAYO:'Mayo',
+                JUNIO:'Junio',JULIO:'Julio',AGOSTO:'Agosto',SEPTIEMBRE:'Septiembre',
+                OCTUBRE:'Octubre',NOVIEMBRE:'Noviembre',DICIEMBRE:'Diciembre'};
+      var cargados=[];
+      rows.forEach(function(row){
+        if(!row||!row[0]) return;
+        var mesKey=String(row[0]).trim().toUpperCase();
+        var mes=MMAP[mesKey]; if(!mes) return;
+        // Total puede estar en col[4] o col[1] dependiendo del formato
+        var total=parseFloat(row[4])||parseFloat(row[1])||0;
+        if(total<=0) return;
+        if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
+        TF.datos[mes].valores['ret_iva_islr']=total;
+        cargados.push(mes);
       });
-      MESES_L.forEach(function(mes){
-        if(!nomina[mes]&&!prov[mes])return;
-        if(!TF.datos[mes])TF.datos[mes]={valores:{},asientos:{}};
-        var V=TF.datos[mes].valores;
-        var tBCV=TF.TASAS[mes]||1; var tUSDT=USDT_RATES[mes]||tBCV;
-        V['nom_usd']=nomina[mes]; V['prov_usd']=prov[mes];
-        var totUSD=(nomina[mes]||0)+(prov[mes]||0);
-        V['fluct_cam']=totUSD*(tUSDT-tBCV)/tBCV;
-      });
+      if(!cargados.length){
+        if(status) status.innerHTML='⚠️ No se detectaron datos de retenciones. Verifica el formato del archivo.';
+        return;
+      }
       try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
-      if(status)status.innerHTML='✅ Nómina USD cargada';
-      showToast('Nómina USD procesada');
-      _tfBuildSelector();_tfRenderKPIs();_tfRenderTabla();
-    }catch(ex){if(status)status.innerHTML='❌ '+ex.message;}
+      if(status) status.innerHTML='✅ Retenciones cargadas: '+cargados.join(', ');
+      _tfActualizarEstadoCarga('ret','✅ Retenciones: '+cargados.join(', '));
+      showToast('Retenciones cargadas: '+cargados.join(', '));
+      _tfRenderKPIs(); _tfRenderTabla();
+    }catch(ex){
+      if(status) status.innerHTML='❌ Error retenciones: '+ex.message;
+    }
     evt.target.value='';
   };
   reader.readAsArrayBuffer(file);
 }
+
+// ── Fluctuaciones históricas Ene-May del Excel (R10) ─────────────────
+// Fuente: Flujo de Caja Contabilidad hoja "FLUJO DE CAJA $"
+// Se usa cuando no hay tasa USDT registrada manualmente
+var TF_FLUCT_HIST = {
+  'Enero':  {nom:16630,prov:9174,dif:13796,usdt:524.24},
+  'Febrero':{nom:12440,prov:9174,dif:5614, usdt:494.78},
+  'Marzo':  {nom:19640,prov:9174,dif:7841, usdt:568.22},
+  'Abril':  {nom:16120,prov:16958,dif:5207,usdt:555.52},
+  'Mayo':   {nom:15380,prov:8739,dif:2957, usdt:578.96}
+};
+
+// ── Modal de Divisas / Nómina USD ────────────────────────────────────
+function tfAbrirModalDivisas(){
+  var mes=TF.mesActivo;
+  // Pre-cargar tasa BCV del mes activo
+  var bcv=(STATE.bcvRates&&STATE.bcvRates[mes]&&STATE.bcvRates[mes].avg)||TF.TASAS[mes]||515.73;
+  var el=document.getElementById('tf-div-tasa-bcv');
+  if(el) el.value=bcv.toFixed(4);
+  // Pre-cargar histórico si existe
+  if(TF_FLUCT_HIST[mes]){
+    var h=TF_FLUCT_HIST[mes];
+    var eu=document.getElementById('tf-div-tasa-usdt');
+    if(eu&&!eu.value) eu.value=h.usdt.toFixed(2);
+  }
+  // Cargar conceptos ya guardados si los hay
+  _tfDivRenderConceptos(mes);
+  tfDivRecalcular();
+  document.getElementById('tf-divisas-modal').style.display='flex';
+}
+
+function _tfDivRenderConceptos(mes){
+  var V=(TF.datos[mes]||{}).valores||{};
+  var cont=document.getElementById('tf-div-conceptos');
+  if(!cont) return;
+  // Si ya hay datos guardados, mostrarlos; sino, mostrar 2 conceptos por defecto
+  var conceptosGuardados=V['_div_conceptos']||null;
+  if(conceptosGuardados){
+    cont.innerHTML='';
+    conceptosGuardados.forEach(function(c,i){ cont.innerHTML+=_tfDivConceptoHTML(i,c.desc,c.usd); });
+  } else {
+    cont.innerHTML=_tfDivConceptoHTML(0,'Nómina Gerencial',V['nom_usd']||0)
+                  +_tfDivConceptoHTML(1,'Proveedores USD',V['prov_usd']||0);
+  }
+}
+
+function _tfDivConceptoHTML(idx,desc,usd){
+  return '<div id="tf-div-c'+idx+'" style="display:grid;grid-template-columns:1fr 160px 36px;gap:8px;align-items:center;background:var(--s2);border-radius:8px;padding:10px 12px">'
+    +'<div><label style="font-size:8px;color:var(--td);font-weight:600;display:block;margin-bottom:3px">Concepto</label>'
+    +'<input type="text" id="tf-div-desc-'+idx+'" value="'+desc+'" placeholder="Ej: Nómina Gerencial Mayo" '
+    +'style="width:100%;padding:6px 8px;border:1px solid var(--br);border-radius:6px;font-size:11px;background:var(--s)" oninput="tfDivRecalcular()"></div>'
+    +'<div><label style="font-size:8px;color:var(--td);font-weight:600;display:block;margin-bottom:3px">Monto USD</label>'
+    +'<input type="number" id="tf-div-usd-'+idx+'" value="'+(usd||'')+'" placeholder="0.00" step="0.01" '
+    +'style="width:100%;padding:6px 8px;border:1px solid var(--br);border-radius:6px;font-size:12px;background:var(--s);font-weight:700;text-align:right" oninput="tfDivRecalcular()"></div>'
+    +'<div style="padding-top:18px"><button onclick="tfDivEliminarConcepto('+idx+')" style="background:rgba(176,25,15,.1);border:1px solid rgba(176,25,15,.3);color:#B0190F;border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:13px">✕</button></div>'
+    +'</div>';
+}
+
+function tfDivAgregarConcepto(){
+  var cont=document.getElementById('tf-div-conceptos');
+  if(!cont) return;
+  var idx=cont.children.length;
+  cont.innerHTML+=_tfDivConceptoHTML(idx,'','');
+}
+
+function tfDivEliminarConcepto(idx){
+  var el=document.getElementById('tf-div-c'+idx);
+  if(el){ el.remove(); tfDivRecalcular(); }
+}
+
+function tfDivRecalcular(){
+  var bcv=parseFloat((document.getElementById('tf-div-tasa-bcv')||{}).value)||0;
+  var usdt=parseFloat((document.getElementById('tf-div-tasa-usdt')||{}).value)||0;
+
+  // Spread
+  var spreadEl=document.getElementById('tf-div-spread');
+  var spreadPctEl=document.getElementById('tf-div-spread-pct');
+  if(spreadEl){
+    if(bcv>0&&usdt>0){
+      var spread=usdt-bcv;
+      var pct=spread/bcv*100;
+      spreadEl.textContent='Bs. +'+spread.toFixed(2)+' / USD';
+      spreadEl.style.color=pct>30?'#B0190F':pct>15?'#B07A00':'#0D7A4E';
+      if(spreadPctEl) spreadPctEl.textContent='+'+pct.toFixed(2)+'% sobre BCV';
+    } else {
+      spreadEl.textContent='—';
+      if(spreadPctEl) spreadPctEl.textContent='Ingresa ambas tasas';
+    }
+  }
+
+  // Sumar todos los conceptos
+  var totalUSD=0, conceptos=[];
+  var cont=document.getElementById('tf-div-conceptos');
+  if(cont){
+    Array.from(cont.children).forEach(function(c,i){
+      var descEl=document.getElementById('tf-div-desc-'+i);
+      var usdEl=document.getElementById('tf-div-usd-'+i);
+      var desc=descEl?descEl.value.trim():'';
+      var usd=parseFloat(usdEl?usdEl.value:0)||0;
+      if(usd>0){ totalUSD+=usd; conceptos.push({desc:desc,usd:usd}); }
+    });
+  }
+
+  // Calcular fluctuación: total × (USDT - BCV) / BCV
+  var fluct=(bcv>0&&usdt>0&&totalUSD>0)?totalUSD*(usdt-bcv)/bcv:0;
+  var totalBs=totalUSD*usdt;
+
+  // Mostrar resumen
+  var res=document.getElementById('tf-div-resumen');
+  var resBody=document.getElementById('tf-div-resumen-body');
+  if(res&&resBody&&totalUSD>0){
+    res.style.display='block';
+    function card(lbl,val,col){
+      return '<div style="background:rgba(255,255,255,.06);border-radius:8px;padding:10px 12px">'
+        +'<div style="font-size:8px;color:rgba(255,255,255,.5);font-weight:600;margin-bottom:4px">'+lbl+'</div>'
+        +'<div style="font-size:15px;font-weight:900;color:'+(col||'#fff')+'">'+val+'</div>'
+        +'</div>';
+    }
+    function fmtU(v){ return 'USD '+v.toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    function fmtB(v){ return 'Bs. '+v.toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    resBody.innerHTML=
+      card('Total USD a pagar',fmtU(totalUSD),'#FFD700')+
+      card('Total Bs. comprados',fmtB(totalBs),'#8AEFB8')+
+      card('Fluct. Cambiaria USD',fmtU(fluct),'#FFB347')+
+      card('Costo Real (USD+Fluct.)',fmtU(totalUSD+fluct),'#FF8A8A');
+  } else if(res){ res.style.display='none'; }
+
+  // Guardar en TF para uso inmediato
+  TF._divPreview={bcv:bcv,usdt:usdt,totalUSD:totalUSD,fluct:fluct,conceptos:conceptos};
+}
+
+function tfDivGuardar(){
+  var mes=TF.mesActivo;
+  if(!mes||mes==='acum'){showToast('Selecciona un mes específico primero');return;}
+  var p=TF._divPreview||{};
+  if(!p.totalUSD){showToast('Ingresa al menos un concepto con monto > 0');return;}
+  if(!p.usdt){showToast('Ingresa la tasa paralela / USDT');return;}
+
+  if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
+  var V=TF.datos[mes].valores;
+
+  // Guardar conceptos individuales
+  V['_div_conceptos']=p.conceptos;
+  V['_div_bcv']=p.bcv;
+  V['_div_usdt']=p.usdt;
+
+  // Distribuir conceptos en categorías
+  V['nom_usd']=0; V['prov_usd']=0;
+  p.conceptos.forEach(function(c){
+    var desc_l=c.desc.toLowerCase();
+    if(desc_l.indexOf('nómina')>=0||desc_l.indexOf('nomina')>=0||desc_l.indexOf('gerente')>=0)
+      V['nom_usd']=(V['nom_usd']||0)+c.usd;
+    else
+      V['prov_usd']=(V['prov_usd']||0)+c.usd;
+  });
+
+  // R10: Fluctuación cambiaria = total × (USDT - BCV) / BCV
+  V['fluct_cam']=p.fluct;
+
+  try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
+  document.getElementById('tf-divisas-modal').style.display='none';
+  _tfActualizarEstadoCarga('div','✅ Divisas: USD '+p.totalUSD.toLocaleString()+' · USDT '+p.usdt.toFixed(2));
+  showToast('Divisas guardadas · Fluctuación: USD '+p.fluct.toFixed(0));
+  _tfRenderKPIs(); _tfRenderTabla();
+}
+
+function tfLimpiarDatos(){
+  if(!confirm('¿Limpiar todos los datos del flujo de caja? Esta acción no se puede deshacer.')) return;
+  TF.datos={};
+  try{localStorage.removeItem('slf_tesoreria_datos');}catch(e){}
+  _tfBuildSelector(); _tfRenderKPIs(); _tfRenderTabla();
+  var st=document.getElementById('tf-load-status');
+  if(st) st.innerHTML='🗑 Datos limpiados';
+  _tfActualizarEstadoCarga('all','');
+  showToast('Datos del flujo de caja limpiados');
+}
+
+function _tfActualizarEstadoCarga(modulo, texto){
+  var cont=document.getElementById('tf-carga-estado');
+  if(!cont) return;
+  if(modulo==='all'){ cont.innerHTML=''; return; }
+  var id='tf-estado-'+modulo;
+  var el=document.getElementById(id);
+  if(!el){
+    el=document.createElement('span');
+    el.id=id;
+    el.style.cssText='font-size:8.5px;padding:2px 8px;background:rgba(13,122,78,.1);border:1px solid rgba(13,122,78,.3);border-radius:20px;color:#0D7A4E;font-weight:600';
+    cont.appendChild(el);
+  }
+  el.textContent=texto;
+}
+
 
 function tfExportar(){
   var meses=_tfMeses();
