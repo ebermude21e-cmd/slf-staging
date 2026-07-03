@@ -721,106 +721,161 @@ table.diff td.new{background:#DCFCE7;color:var(--g);font-weight:700}
 
 <!-- ══ TESORERÍA: FLUJO DE CAJA ══ -->
 <div class="pane" id="pane-tesoreria-flujo">
+<div style="padding:16px 20px">
 
-  <!-- HEADER STICKY -->
-  <div id="tf-header" style="position:sticky;top:0;z-index:20;background:var(--s);padding-bottom:10px;border-bottom:1px solid var(--br);margin-bottom:14px">
+<style>
+/* ══ Flujo de Caja — Estilos exactos del Excel ══ */
+.fc-wrap{overflow-x:auto;border-radius:10px;box-shadow:0 2px 16px rgba(74,45,143,.10)}
+.fc-tbl{width:100%;border-collapse:collapse;min-width:740px;font-family:"Segoe UI",Arial,sans-serif}
+.fc-tbl td,.fc-tbl th{padding:0}
 
-    <!-- Título + botones de carga -->
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-      <div>
-        <h2 style="font-size:15px;font-weight:800;color:var(--ink2);margin:0">📊 Flujo de Caja — Mayo 2026</h2>
-        <p style="font-size:9px;color:var(--td);margin:2px 0 0">Egresos operacionales vs Prima cobrada · En USD · Fuente: Mayor Analítico + Registros manuales</p>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-        <input type="file" id="tf-file-mayor"      accept=".xls,.xlsx" style="display:none" onchange="tfCargarMayor(event)">
-        <input type="file" id="tf-file-nom-ger"    accept=".xlsx,.xls" style="display:none" onchange="tfCargarNominaGerentes(event)">
-        <input type="file" id="tf-file-impuestos"  accept=".xlsx,.xls" style="display:none" onchange="tfCargarImpuestos(event)">
-        <input type="file" id="tf-file-tributarios"accept=".xlsx,.xls" style="display:none" onchange="tfCargarTributarios(event)">
-        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-mayor').click()">📂 Mayor Analítico</button>
-        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-nom-ger').click()">👥 Nómina Gerentes</button>
-        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-impuestos').click()">🧾 Impuestos</button>
-        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-tributarios').click()">📋 Costos Tributarios</button>
-        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="tfAbrirModalDivisas()">💱 Divisas</button>
-        <button class="btn btn-primary" style="font-size:9px;padding:4px 10px" onclick="tfExportar()">⬇ Excel</button>
-        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="tfLimpiarDatos()" title="Limpiar datos del mayor analítico">🗑 Limpiar</button>
-      </div>
-    </div>
+/* Cabecera de mes */
+.fch{background:#1A0F40;color:#fff;font-size:10px;font-weight:700;
+  text-align:center;padding:7px 6px;letter-spacing:.08em;white-space:nowrap}
 
-    <!-- Status de carga -->
-    <div id="tf-load-status" style="font-size:9px;color:var(--td);min-height:14px;margin-bottom:6px"></div>
+/* Título principal */
+.fc-tit{background:#0F0A1E;color:#fff;font-size:13px;font-weight:800;
+  letter-spacing:.05em;text-align:center;padding:11px 8px}
+.fc-sub{background:#1A0F40;color:#C8B8F0;font-size:9.5px;
+  text-align:center;padding:4px 8px}
 
-    <!-- Panel de estado de carga por módulo -->
-    <div id="tf-carga-estado" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px"></div>
+/* Sección (1. Ingresos / 2. Egresos / Presidencia) */
+.fc-sec td{background:#4B2D8F;color:#fff;font-size:10px;font-weight:800;
+  padding:7px 12px;text-transform:uppercase;letter-spacing:.07em;border:none}
 
-  </div><!-- /tf-header -->
+/* Sub-sección (Gastos de Siniestros, etc.) */
+.fc-ssec td{background:#EDE8FA;color:#3A1E78;font-size:9.5px;font-weight:700;
+  padding:5px 16px;border-bottom:1px solid #D4C4EE;letter-spacing:.04em}
 
-  <!-- KPI Cards -->
-  <div id="tf-kpis" style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px"></div>
+/* Concepto normal */
+.fc-row td{background:#fff;color:#1A1520;font-size:10px;padding:3.5px 8px;
+  border-bottom:1px solid #F3F0FB}
+.fc-row:hover td{background:#F9F7FE}
 
-  <!-- Cuerpo tabla + gráficos -->
-  <div id="tf-body"></div>
+/* Total de sección */
+.fc-tot td{background:#2D1A6B;color:#fff;font-size:10px;font-weight:700;
+  padding:6px 8px;border-top:2px solid #4B2D8F;border-bottom:none}
 
+/* Total Egresos / Total Egresos+Presidencia */
+.fc-tot-egr td{background:#1A0F40;color:#fff;font-size:10.5px;font-weight:800;
+  padding:7px 8px;border-top:3px solid #7B5FC0}
+
+/* Porcentaje */
+.fc-pct td{background:#F5F2FC;color:#6B4DAA;font-size:9px;font-style:italic;
+  padding:3px 8px;border-bottom:1px solid #EAE4F8}
+
+/* Saldo en Caja — verde o rojo según signo */
+.fc-sld-pos td{background:#0D7A4E;color:#fff;font-size:12px;font-weight:800;padding:8px 8px;border-top:3px solid #0A5E3B}
+.fc-sld-neg td{background:#8B1A1A;color:#fff;font-size:12px;font-weight:800;padding:8px 8px;border-top:3px solid #6B1212}
+
+/* Saldo Anterior / Títulos de Cobertura */
+.fc-sep td{background:#EDE8FA;padding:5px;border-top:2px solid #C9BCEE}
+.fc-sal-ant td{background:#EDE8FA;color:#3A1E78;font-size:9.5px;font-weight:700;padding:5px 12px}
+.fc-cob td{background:#fff;color:#1A1520;font-size:10px;padding:4px 8px}
+
+/* Columnas numéricas */
+.fc-num{text-align:right;font-family:"Consolas","Courier New",monospace;
+  padding-right:14px!important;white-space:nowrap}
+.fc-lbl{padding-left:12px!important}
+.fc-lbl-ind{padding-left:22px!important}
+</style>
+
+<div class="fc-wrap">
+<table class="fc-tbl">
+<colgroup>
+  <col style="width:38%">
+  <col style="width:12.4%"><col style="width:12.4%"><col style="width:12.4%">
+  <col style="width:12.4%"><col style="width:12.4%">
+</colgroup>
+<thead><tr><th class="fch" style="text-align:left;padding-left:12px">Concepto</th><th class="fch">ENERO</th><th class="fch">FEBRERO</th><th class="fch">MARZO</th><th class="fch">ABRIL</th><th class="fch">MAYO</th></tr></thead>
+<tbody>
+<tr><td colspan="6" class="fc-tit">FLUJO DE EFECTIVO</td></tr>
+<tr><td colspan="6" class="fc-sub">Situación Financiera</td></tr>
+<tr><td colspan="6" class="fc-sub">COMPARATIVO 2026</td></tr>
+<tr class="fc-sec"><td colspan="6">1.  Ingresos</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Primas Cobradas Cartera Individual</td><td class="fc-num">207.108,01</td><td class="fc-num">199.068,57</td><td class="fc-num">230.436,44</td><td class="fc-num">202.548,17</td><td class="fc-num">211.662,90</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Prima Cobrada Grupo Polar (Alícuota)</td><td class="fc-num">51.418,60</td><td class="fc-num">51.418,60</td><td class="fc-num">51.418,60</td><td class="fc-num">58.273,67</td><td class="fc-num">58.619,98</td></tr>
+<tr class="fc-tot"><td class="fc-lbl">Total Ingresos</td><td class="fc-num">258.526,61</td><td class="fc-num">250.487,17</td><td class="fc-num">281.855,04</td><td class="fc-num">260.821,84</td><td class="fc-num">270.282,88</td></tr>
+<tr class="fc-sec"><td colspan="6">2.  Egresos</td></tr>
+<tr class="fc-ssec"><td colspan="6">Gastos de Siniestros</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Siniestros Pagados (Seguros La Fé)</td><td class="fc-num">85.521,50</td><td class="fc-num">31.801,49</td><td class="fc-num">41.329,52</td><td class="fc-num">51.824,68</td><td class="fc-num">48.134,46</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Siniestros Pagados (GRUPO POLAR)</td><td class="fc-num">39.379,62</td><td class="fc-num">24.723,71</td><td class="fc-num">23.538,62</td><td class="fc-num">32.305,66</td><td class="fc-num">27.528,58</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Siniestros Pagados por Anticipado</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">105,08</td><td class="fc-num">865,06</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Gastos Grupo Nueve Once</td><td class="fc-num">7.480,87</td><td class="fc-num">4.616,23</td><td class="fc-num">3.150,86</td><td class="fc-num">19.859,54</td><td class="fc-num">2.794,79</td></tr>
+<tr class="fc-tot"><td class="fc-lbl">Total Siniestros Incurridos</td><td class="fc-num">132.381,99</td><td class="fc-num">61.141,42</td><td class="fc-num">68.124,07</td><td class="fc-num">104.854,94</td><td class="fc-num">78.457,82</td></tr>
+<tr class="fc-pct"><td class="fc-lbl">% Siniestralidad</td><td class="fc-num">51.21%</td><td class="fc-num">24.41%</td><td class="fc-num">24.17%</td><td class="fc-num">40.20%</td><td class="fc-num">29.03%</td></tr>
+<tr class="fc-ssec"><td colspan="6">Gastos de Comisiones</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Coordinación Funeasistencia</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">1.731,86</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">1.465,33</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Comisiones Call Center</td><td class="fc-num">1.238,84</td><td class="fc-num">1.100,40</td><td class="fc-num">691,72</td><td class="fc-num">1.036,78</td><td class="fc-num">989,73</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Gastos de Promoción y Venta</td><td class="fc-num">6.270,14</td><td class="fc-num">13.206,25</td><td class="fc-num">20.399,16</td><td class="fc-num">24.242,51</td><td class="fc-num">17.701,29</td></tr>
+<tr class="fc-tot"><td class="fc-lbl">Total Comisiones</td><td class="fc-num">7.508,98</td><td class="fc-num">16.038,51</td><td class="fc-num">21.090,88</td><td class="fc-num">26.744,63</td><td class="fc-num">18.691,02</td></tr>
+<tr class="fc-pct"><td class="fc-lbl">% Gasto de Comisiones</td><td class="fc-num">2.90%</td><td class="fc-num">6.40%</td><td class="fc-num">7.48%</td><td class="fc-num">10.25%</td><td class="fc-num">6.92%</td></tr>
+<tr class="fc-ssec"><td colspan="6">Gasto de Administración</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Gastos de Administración</td><td class="fc-num">59.320,29</td><td class="fc-num">43.034,33</td><td class="fc-num">53.640,89</td><td class="fc-num">55.913,78</td><td class="fc-num">44.235,33</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Anticipo a Proveedores</td><td class="fc-num">9.173,60</td><td class="fc-num">9.173,60</td><td class="fc-num">9.173,60</td><td class="fc-num">16.958,40</td><td class="fc-num">8.739,24</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Yaya Eco Sistemas</td><td class="fc-num">8.630,72</td><td class="fc-num">3.900,00</td><td class="fc-num">8.178,74</td><td class="fc-num">9.097,48</td><td class="fc-num">4.086,70</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Yaya Eco Sistemas Diferencial</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">1.759,88</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Fabiola Cedeño</td><td class="fc-num">445,94</td><td class="fc-num">531,31</td><td class="fc-num">1.028,16</td><td class="fc-num">506,48</td><td class="fc-num">499,47</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Curso de la CAV</td><td class="fc-num">89,00</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Caja Cesar Salas</td><td class="fc-num">7,79</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Pago Factura</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">400,00</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">275,38</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Pago Factura Diferencial</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">180,50</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Miriam Luz Pirela</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">777,97</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">135,20</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Jenny Duarte</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">681,78</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Volante Full Color</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">5,03</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Actuarios Belisario</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">5.408,99</td><td class="fc-num">2.797,68</td><td class="fc-num">165,67</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Humberto García</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">197,73</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Reparaciones de Tubería</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">170,18</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Reembolso de Pagos FVM</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">1.224,01</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Reembolso de Pagos Planificadora</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">2.964,84</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Yorman Bonificación</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">3.000,00</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Yorman Bonificación Diferencial</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">576,82</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Nómina Gerentes</td><td class="fc-num">16.630,00</td><td class="fc-num">12.440,00</td><td class="fc-num">19.640,00</td><td class="fc-num">16.120,00</td><td class="fc-num">15.380,00</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Diferencial Cambiario Nómina Gerentes</td><td class="fc-num">13.796,39</td><td class="fc-num">5.613,58</td><td class="fc-num">7.840,94</td><td class="fc-num">5.206,88</td><td class="fc-num">2.957,19</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Gastos Extraordinarios</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">377,33</td><td class="fc-num">1.539,16</td><td class="fc-num">2.265,28</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Almuerzo Empleados / Adecuación Plan Contable</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">377,33</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Pagos de PC</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">1.100,00</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Diferencial Pagos de PC</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">439,16</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Compra de Scanner</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">1.140,00</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Diferencial Compra de Scanner</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">463,24</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Compra de 2 Microondas Samsung 32 Ltros</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">662,05</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Impuestos (IVA, ISLR, SUDEASEG, PATENTE, IGTF, OTRAS)</td><td class="fc-num">13.437,22</td><td class="fc-num">19.004,25</td><td class="fc-num">11.517,37</td><td class="fc-num">15.115,36</td><td class="fc-num">21.674,89</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">ISLR ANUAL</td><td class="fc-num">14.193,66</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">123,13</td></tr>
+<tr class="fc-tot"><td class="fc-lbl">Total Gasto de Administración</td><td class="fc-num">134.060,14</td><td class="fc-num">105.681,59</td><td class="fc-num">124.442,84</td><td class="fc-num">138.324,32</td><td class="fc-num">111.800,80</td></tr>
+<tr class="fc-pct"><td class="fc-lbl">% Gasto Administración</td><td class="fc-num">51.86%</td><td class="fc-num">42.19%</td><td class="fc-num">44.15%</td><td class="fc-num">53.03%</td><td class="fc-num">41.36%</td></tr>
+<tr class="fc-ssec"><td colspan="6">Costos Tributarios</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Retenciones de IVA, ISLR e IAE</td><td class="fc-num">15.211,07</td><td class="fc-num">14.922,94</td><td class="fc-num">7.942,46</td><td class="fc-num">10.985,73</td><td class="fc-num">12.686,01</td></tr>
+<tr class="fc-tot"><td class="fc-lbl">Total Costos Tributarios</td><td class="fc-num">15.211,07</td><td class="fc-num">14.922,94</td><td class="fc-num">7.942,46</td><td class="fc-num">10.985,73</td><td class="fc-num">12.686,01</td></tr>
+<tr class="fc-pct"><td class="fc-lbl">% Costo Tributario</td><td class="fc-num">5.88%</td><td class="fc-num">5.96%</td><td class="fc-num">2.82%</td><td class="fc-num">4.21%</td><td class="fc-num">4.69%</td></tr>
+<tr class="fc-ssec"><td colspan="6">Costo Bancario</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Comisión Bancaria por Domiciliación en Cobranza</td><td class="fc-num">4.257,81</td><td class="fc-num">4.160,42</td><td class="fc-num">5.118,08</td><td class="fc-num">4.137,75</td><td class="fc-num">4.535,14</td></tr>
+<tr class="fc-row"><td class="fc-lbl-ind">Comisión Bancaria por Mantenimiento de Cuenta</td><td class="fc-num">1.537,19</td><td class="fc-num">1.415,67</td><td class="fc-num">1.286,60</td><td class="fc-num">1.492,67</td><td class="fc-num">1.707,48</td></tr>
+<tr class="fc-tot"><td class="fc-lbl">Total Costo Bancario</td><td class="fc-num">5.795,01</td><td class="fc-num">5.576,10</td><td class="fc-num">6.404,68</td><td class="fc-num">5.630,42</td><td class="fc-num">6.242,62</td></tr>
+<tr class="fc-pct"><td class="fc-lbl">% Costo Bancario</td><td class="fc-num">1.65%</td><td class="fc-num">2.23%</td><td class="fc-num">2.27%</td><td class="fc-num">2.16%</td><td class="fc-num">2.31%</td></tr>
+<tr class="fc-tot-egr"><td class="fc-lbl">Total Egresos</td><td class="fc-num">287.448,21</td><td class="fc-num">187.322,06</td><td class="fc-num">206.914,05</td><td class="fc-num">259.795,41</td><td class="fc-num">209.187,25</td></tr>
+<tr class="fc-pct"><td class="fc-lbl">% Total Egresos</td><td class="fc-num">111.19%</td><td class="fc-num">74.78%</td><td class="fc-num">73.41%</td><td class="fc-num">99.61%</td><td class="fc-num">77.40%</td></tr>
+<tr class="fc-sld-neg"><td class="fc-lbl" style="font-weight:800">3.  Saldo en Caja</td><td class="fc-num"><span style="color:#B0190F">(28.921,60)</span></td><td class="fc-num">63.165,11</td><td class="fc-num">74.940,98</td><td class="fc-num">1.026,43</td><td class="fc-num">61.095,63</td></tr>
+<tr class="fc-sec"><td colspan="6">Presidencia</td></tr>
+<tr class="fc-row"><td class="fc-lbl">Gastos de Presidencia</td><td class="fc-num">9.151,76</td><td class="fc-num">9.385,16</td><td class="fc-num">14.136,22</td><td class="fc-num">11.684,00</td><td class="fc-num">13.974,14</td></tr>
+<tr class="fc-row"><td class="fc-lbl">CONDOMINIOS</td><td class="fc-num">3.957,34</td><td class="fc-num">3.016,26</td><td class="fc-num">7.113,61</td><td class="fc-num">3.020,12</td><td class="fc-num">3.789,15</td></tr>
+<tr class="fc-row"><td class="fc-lbl">SERVICIOS BÁSICOS</td><td class="fc-num">530,12</td><td class="fc-num">414,15</td><td class="fc-num">551,45</td><td class="fc-num">573,10</td><td class="fc-num">486,99</td></tr>
+<tr class="fc-row"><td class="fc-lbl">PAGOS TARJETAS DE CRÉDITO</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl">GASTOS DIVERSOS PRESIDENCIA</td><td class="fc-num">4.664,30</td><td class="fc-num">5.954,75</td><td class="fc-num">6.471,16</td><td class="fc-num">8.090,78</td><td class="fc-num">9.698,00</td></tr>
+<tr class="fc-row"><td class="fc-lbl">Gastos Grupo Valles</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">636,51</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">389,85</td><td class="fc-num">58,38</td></tr>
+<tr class="fc-row"><td class="fc-lbl">Líneas de Crédito</td><td class="fc-num">2.010,52</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num">608,68</td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td><td class="fc-num"><span style="color:#C0B8D8">0,00</span></td></tr>
+<tr class="fc-row"><td class="fc-lbl">Zelle</td><td class="fc-num">104,08</td><td class="fc-num">110,00</td><td class="fc-num">86,68</td><td class="fc-num">121,10</td><td class="fc-num">15,94</td></tr>
+<tr class="fc-tot"><td class="fc-lbl">Total Presidencia</td><td class="fc-num">11.266,36</td><td class="fc-num">10.131,68</td><td class="fc-num">14.831,59</td><td class="fc-num">12.194,95</td><td class="fc-num">14.048,47</td></tr>
+<tr class="fc-pct"><td class="fc-lbl">% Presidencia</td><td class="fc-num">4.36%</td><td class="fc-num">4.04%</td><td class="fc-num">5.26%</td><td class="fc-num">4.68%</td><td class="fc-num">5.20%</td></tr>
+<tr class="fc-tot-egr"><td class="fc-lbl">Total Egresos más Gasto de Presidencia</td><td class="fc-num">298.714,57</td><td class="fc-num">197.453,74</td><td class="fc-num">221.745,64</td><td class="fc-num">271.990,36</td><td class="fc-num">223.235,72</td></tr>
+<tr class="fc-sld-neg"><td class="fc-lbl" style="font-weight:800">Saldo Primas menos Egresos</td><td class="fc-num"><span style="color:#B0190F">(40.187,96)</span></td><td class="fc-num">53.033,43</td><td class="fc-num">60.109,40</td><td class="fc-num"><span style="color:#B0190F">(11.168,52)</span></td><td class="fc-num">47.047,16</td></tr>
+<tr class="fc-sep"><td colspan="6">&nbsp;</td></tr>
+<tr><td colspan="6" class="fc-sub">Saldo Anterior</td></tr>
+<tr class="fc-cob"><td class="fc-lbl">Títulos de Cobertura</td><td class="fc-num">50.749,91</td><td class="fc-num">57.218,35</td><td class="fc-num">54.635,93</td><td class="fc-num">168.192,05</td><td class="fc-num">116.732,07</td></tr>
+</tbody>
+</table>
+</div><!-- /fc-wrap -->
+</div><!-- /padding -->
 </div><!-- /pane-tesoreria-flujo -->
-
-<!-- ══ MODAL: REGISTRO DE COMPRA DE DIVISAS Y NÓMINA USD ══ -->
-<div id="tf-divisas-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;align-items:center;justify-content:center">
-  <div style="background:var(--s);border-radius:16px;padding:0;width:680px;max-width:97vw;max-height:90vh;box-shadow:0 24px 64px rgba(0,0,0,.4);display:flex;flex-direction:column">
-    <!-- Header -->
-    <div style="padding:16px 20px 12px;border-bottom:1px solid var(--br);display:flex;justify-content:space-between;align-items:center;background:var(--ink2);border-radius:16px 16px 0 0">
-      <div>
-        <div style="font-size:13px;font-weight:800;color:#fff">💱 Compra de Divisas y Nómina en USD — Mayo 2026</div>
-        <div style="font-size:9px;color:rgba(255,255,255,.6);margin-top:2px">Registra la tasa de compra y los conceptos pagados en USD. El sistema calcula la fluctuación automáticamente.</div>
-      </div>
-      <button onclick="document.getElementById('tf-divisas-modal').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:15px;cursor:pointer;border-radius:6px;padding:2px 8px">✕</button>
-    </div>
-    <!-- Cuerpo del modal -->
-    <div style="padding:18px 20px;overflow-y:auto;flex:1">
-
-      <!-- Sección: Tasas de cambio para Mayo -->
-      <div style="background:var(--s2);border-radius:10px;padding:14px 16px;margin-bottom:16px;border-left:4px solid var(--p)">
-        <div style="font-size:10px;font-weight:700;color:var(--p);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">📊 Tasas de Cambio — Mayo 2026</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-          <div>
-            <label style="font-size:9px;color:var(--td);font-weight:600;display:block;margin-bottom:4px">Tasa BCV Promedio Mayo (Bs.)</label>
-            <input type="number" id="tf-div-tasa-bcv" step="0.01" placeholder="515.73" value="515.73"
-              style="width:100%;padding:7px 10px;border:1px solid var(--br);border-radius:7px;font-size:12px;background:var(--s);font-weight:700;color:var(--p)"
-              oninput="tfDivRecalcular()">
-            <div style="font-size:8px;color:var(--td);margin-top:3px">Promedio exacto del mes (hoja Tasas Cambiarias)</div>
-          </div>
-          <div>
-            <label style="font-size:9px;color:var(--td);font-weight:600;display:block;margin-bottom:4px">Tasa Paralela / USDT Compra (Bs.)</label>
-            <input type="number" id="tf-div-tasa-usdt" step="0.01" placeholder="660.00"
-              style="width:100%;padding:7px 10px;border:1px solid var(--br);border-radius:7px;font-size:12px;background:var(--s);font-weight:700;color:#B07A00"
-              oninput="tfDivRecalcular()">
-            <div style="font-size:8px;color:var(--td);margin-top:3px">Tasa de mercado del día de la compra de divisas</div>
-          </div>
-          <div style="background:var(--s);border-radius:8px;padding:10px;border:1px solid var(--br)">
-            <div style="font-size:8px;color:var(--td);font-weight:600;margin-bottom:4px">DIFERENCIAL CALCULADO</div>
-            <div id="tf-div-spread" style="font-size:16px;font-weight:900;color:#B0190F">—</div>
-            <div id="tf-div-spread-pct" style="font-size:9px;color:var(--td);margin-top:2px">% sobre tasa BCV</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Sección: Conceptos pagados en USD -->
-      <div style="font-size:10px;font-weight:700;color:var(--ink2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">💵 Conceptos Pagados en USD</div>
-      <div id="tf-div-conceptos" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
-      <button onclick="tfDivAgregarConcepto()" class="btn btn-ghost" style="font-size:9px;padding:4px 12px;margin-bottom:16px">+ Agregar concepto</button>
-
-      <!-- Resumen calculado -->
-      <div id="tf-div-resumen" style="background:var(--ink2);border-radius:10px;padding:14px 16px;display:none">
-        <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,.6);margin-bottom:8px;text-transform:uppercase">RESUMEN DEL CÁLCULO</div>
-        <div id="tf-div-resumen-body" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
-      </div>
-
-    </div>
-    <!-- Footer -->
-    <div style="padding:14px 20px;border-top:1px solid var(--br);display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-ghost" style="font-size:10px" onclick="document.getElementById('tf-divisas-modal').style.display='none'">Cancelar</button>
-      <button class="btn btn-primary" style="font-size:11px;padding:7px 20px" onclick="tfDivGuardar()">💾 Guardar y Calcular Fluctuación</button>
-    </div>
-  </div>
-</div>
 
 <!-- ══ TESORERÍA: GASTOS FIJOS Y VARIABLES ══ -->
 <div class="pane" id="pane-tesoreria-gastos">
@@ -1288,7 +1343,7 @@ function showTab(name, btn){
   if(name==='ajustes') initAjustesTab();
   if(name==='tasas') renderTasasConsulta();
   if(name==='cartera-composicion') renderCarteraComposicion();
-  if(name==='tesoreria-flujo')    renderTesoreriaFlujo();
+  // flujo de caja es HTML estático — no requiere renderizado JS
   if(name==='tesoreria-gastos')   renderTesoreriaGastos();
   if(name==='tesoreria-divisas')  renderTesoreriaDivisas();
 }
