@@ -733,12 +733,16 @@ table.diff td.new{background:#DCFCE7;color:var(--g);font-weight:700}
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <input type="file" id="tf-file-mayor"      accept=".xls,.xlsx" style="display:none" onchange="tfCargarMayor(event)">
-        <input type="file" id="tf-file-retenciones" accept=".xlsx,.xls" style="display:none" onchange="tfCargarRetenciones(event)">
+        <input type="file" id="tf-file-nom-ger"    accept=".xlsx,.xls" style="display:none" onchange="tfCargarNominaGerentes(event)">
+        <input type="file" id="tf-file-impuestos"  accept=".xlsx,.xls" style="display:none" onchange="tfCargarImpuestos(event)">
+        <input type="file" id="tf-file-tributarios"accept=".xlsx,.xls" style="display:none" onchange="tfCargarTributarios(event)">
         <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-mayor').click()">📂 Mayor Analítico</button>
-        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-retenciones').click()">📂 Retenciones</button>
-        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="tfAbrirModalDivisas()">💱 Divisas / Nómina USD</button>
+        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-nom-ger').click()">👥 Nómina Gerentes</button>
+        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-impuestos').click()">🧾 Impuestos</button>
+        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="document.getElementById('tf-file-tributarios').click()">📋 Costos Tributarios</button>
+        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="tfAbrirModalDivisas()">💱 Divisas</button>
         <button class="btn btn-primary" style="font-size:9px;padding:4px 10px" onclick="tfExportar()">⬇ Excel</button>
-        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="tfLimpiarDatos()" title="Limpiar todos los datos cargados">🗑 Limpiar</button>
+        <button class="btn btn-ghost" style="font-size:9px;padding:4px 10px" onclick="tfLimpiarDatos()" title="Limpiar datos del mayor analítico">🗑 Limpiar</button>
       </div>
     </div>
 
@@ -4109,78 +4113,117 @@ var TF = {
   // manual:true → el valor se carga manualmente (no del mayor analítico)
   ESTRUCTURA: [
 
-    // ── 1. INGRESOS ─────────────────────────────────────────────────
-    { id:'sec_ingr', lbl:'1.  INGRESOS', tipo:'seccion' },
-    { id:'prima_ind',   lbl:'Primas Cobradas — Cartera Individual',     tipo:'item', signo:1, fuente:'balance' },
-    { id:'prima_polar', lbl:'Prima Cobrada Grupo Polar (Alícuota)',     tipo:'item', signo:1, fuente:'manual' },
-    { id:'total_ingr',  lbl:'TOTAL INGRESOS',  tipo:'total_ingr' },
+    // ── 1. INGRESOS ──────────────────────────────────────────────────
+    { id:'sec_ingr',  lbl:'1.  INGRESOS', tipo:'seccion' },
+    { id:'prima_ind', lbl:'Primas Cobradas',   tipo:'item', signo:1, fuente:'balance',
+      nota:'totals.a del balance contable / tasa BCV promedio' },
+    { id:'total_ingr',lbl:'TOTAL INGRESOS',    tipo:'total_ingr' },
 
-    // ── 2. EGRESOS ──────────────────────────────────────────────────
-    { id:'sec_egr', lbl:'2.  EGRESOS', tipo:'seccion' },
+    // ── 2. EGRESOS ───────────────────────────────────────────────────
+    { id:'sec_egr',   lbl:'2.  EGRESOS',   tipo:'seccion' },
 
-    // Gastos de Siniestros
-    { id:'sec_sin', lbl:'Gastos de Siniestros', tipo:'subseccion' },
-    { id:'sin_tot',     lbl:'Siniestros Pagados',                       tipo:'item', signo:-1, fuente:'mayor' },
-    { id:'total_sin',   lbl:'Total Siniestros Incurridos', tipo:'subtotal', hijos:['sin_tot'] },
-    { id:'pct_sin',     lbl:'% Siniestralidad',            tipo:'porcentaje', num:'total_sin', den:'total_ingr' },
+    // ── Gastos de Siniestros ─────────────────────────────────────────
+    { id:'sec_sin',   lbl:'Gastos de Siniestros', tipo:'subseccion' },
+    { id:'sin_tot',         lbl:'Siniestros Pagados',                tipo:'item', signo:-1, fuente:'mayor',
+      nota:'3 321 01 01 + 3 301 01 01 — todos los asientos con debe>0' },
+    { id:'sin_nueve_once',  lbl:'Plan Capitado Grupo Nueve Once, C.A.', tipo:'item', signo:-1, fuente:'mayor',
+      nota:'3 321 09 01 01 01 — solo EGRESO automático' },
+    { id:'total_sin',  lbl:'Total Siniestros Incurridos', tipo:'subtotal', hijos:['sin_tot','sin_nueve_once'] },
+    { id:'pct_sin',    lbl:'% Siniestralidad', tipo:'porcentaje', num:'total_sin', den:'total_ingr' },
 
-    // Gastos de Comisiones
-    { id:'sec_com', lbl:'Gastos de Comisiones', tipo:'subseccion' },
-    { id:'comis_prod',  lbl:'Comisiones a Vendedores (3 381 01 15)',    tipo:'item', signo:-1, fuente:'mayor' },
-    { id:'total_com',   lbl:'Total Comisiones',  tipo:'subtotal', hijos:['comis_prod'] },
-    { id:'pct_com',     lbl:'% Gasto de Comisiones', tipo:'porcentaje', num:'total_com', den:'total_ingr' },
+    // ── Gastos de Comisiones ──────────────────────────────────────────
+    { id:'sec_com',   lbl:'Gastos de Comisiones', tipo:'subseccion' },
+    { id:'comis_prod',      lbl:'Comisiones a Vendedores', tipo:'item', signo:-1, fuente:'mayor',
+      nota:'3 381 01 15 — todos los asientos con debe>0' },
+    { id:'total_com',  lbl:'Total Comisiones', tipo:'subtotal', hijos:['comis_prod'] },
+    { id:'pct_com',    lbl:'% Gasto de Comisiones', tipo:'porcentaje', num:'total_com', den:'total_ingr' },
 
-    // Gasto de Administración
-    { id:'sec_adm', lbl:'Gasto de Administración', tipo:'subseccion' },
-    { id:'otros_adm',   lbl:'Gastos de Administración (Bs.→USD)',       tipo:'item', signo:-1, fuente:'mayor',
-      nota:'3 381 01 exc.nómina/imp/comis/fluct/deprec/provis' },
-    { id:'nom_bs_tot',  lbl:'Nómina Personal (Bs.→USD)',                tipo:'item', signo:-1, fuente:'mayor',
-      nota:'3 381 01 01 — todos los asientos', _hijos:['nom_sueldos','nom_cesta','nom_bonos','nom_otros'] },
-    { id:'prov_usd',    lbl:'Anticipo a Proveedores',                   tipo:'item', signo:-1, fuente:'manual',
-      nota:'Pre-cargado del Excel · Editable · Modal Divisas actualiza' },
-    { id:'nom_usd',     lbl:'Nómina Gerentes',                          tipo:'item', signo:-1, fuente:'manual',
-      nota:'Pre-cargado del Excel · Editable · Modal Divisas actualiza' },
-    { id:'fluct_cam',   lbl:'Diferencial Cambiario',                    tipo:'item', signo:-1, fuente:'manual',
-      nota:'Pre-cargado del Excel · Calculado automático con Modal Divisas' },
-    { id:'impuestos',   lbl:'Impuestos (IVA, ISLR, SUDEASEG, Patente, IGTF)', tipo:'item', signo:-1, fuente:'manual',
-      nota:'Valores del Excel — carga manual por período' },
-    { id:'total_adm',   lbl:'Total Gasto de Administración',
-      tipo:'subtotal', hijos:['otros_adm','nom_bs_tot','prov_usd','nom_usd','fluct_cam','impuestos'] },
-    { id:'pct_adm',     lbl:'% Gasto Administración', tipo:'porcentaje', num:'total_adm', den:'total_ingr' },
+    // ── Gasto de Administración ───────────────────────────────────────
+    { id:'sec_adm',   lbl:'Gasto de Administración', tipo:'subseccion' },
 
-    // Costos Tributarios
+    // Sub-conceptos de Gastos Admin en Bs. (por cuenta contable)
+    { id:'gadm_honorarios',    lbl:'Honorarios Profesionales',         tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'gadm_proc_datos',    lbl:'Procesamiento de Datos',           tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'gadm_serv_bas',      lbl:'Servicios Básicos',                tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'gadm_publicidad',    lbl:'Publicidad y Propaganda',          tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'gadm_inmuebles',     lbl:'Inmuebles y Arrendamientos',       tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'gadm_relaciones',    lbl:'Relaciones Públicas',              tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'gadm_mantenimiento', lbl:'Mantenimiento y Reparaciones',     tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'gadm_representacion',lbl:'Gastos de Representación',         tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'gadm_otros',         lbl:'Otros Gastos Administrativos',     tipo:'item', signo:-1, fuente:'mayor' },
+
+    // Nómina Personal en Bs. — ítem consolidado con detalle por sub-cuenta
+    { id:'nom_bs_tot',   lbl:'Nómina Personal (Bs.→USD)', tipo:'subtotal_mayor',
+      hijos:['nom_sueldos','nom_cesta','nom_bonos','nom_otros'],
+      nota:'3 381 01 01 — clic para ver detalle por empleado' },
+
+    // Contribuciones Parafiscales (IVSS, FAOV, INCES) — gasto de personal
+    { id:'nom_ivss',   lbl:'IVSS / Seguro Social',         tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'nom_faov',   lbl:'FAOV / Política Habitacional', tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'nom_inces',  lbl:'INCES',                        tipo:'item', signo:-1, fuente:'mayor' },
+
+    // Gastos en Divisas USD (modal Divisas o carga Excel)
+    { id:'prov_usd',   lbl:'Anticipo a Proveedores',       tipo:'item', signo:-1, fuente:'manual' },
+    { id:'nom_usd',    lbl:'Nómina Gerentes',              tipo:'item', signo:-1, fuente:'manual',
+      nota:'Carga por Excel o Modal Divisas' },
+    { id:'fluct_cam',  lbl:'Diferencial Cambiario',        tipo:'item', signo:-1, fuente:'manual',
+      nota:'(NomGer+Prov)×(USDT-BCV)/BCV' },
+
+    // Impuestos dinámicos (cargados del Excel de Impuestos — Punto 7)
+    // Los ítems imp_* se agregan dinámicamente al renderizar
+    { id:'impuestos_excel', lbl:'Impuestos y Contribuciones', tipo:'subtotal_dyn',
+      grupo:'imp', nota:'Carga por Excel de Impuestos' },
+
+    { id:'total_adm', lbl:'Total Gasto de Administración', tipo:'subtotal',
+      hijos:['gadm_honorarios','gadm_proc_datos','gadm_serv_bas','gadm_publicidad',
+             'gadm_inmuebles','gadm_relaciones','gadm_mantenimiento','gadm_representacion',
+             'gadm_otros','nom_bs_tot','nom_ivss','nom_faov','nom_inces',
+             'prov_usd','nom_usd','fluct_cam','impuestos_excel'] },
+    { id:'pct_adm',   lbl:'% Gasto Administración', tipo:'porcentaje', num:'total_adm', den:'total_ingr' },
+
+    // ── Gasto de Presidencia — ítem propio, fuera de Gasto Admin ────
+    { id:'sec_pres',  lbl:'Gasto de Presidencia', tipo:'subseccion' },
+    { id:'gto_pres',  lbl:'Gasto de Presidencia',  tipo:'item', signo:-1, fuente:'mayor',
+      nota:'3 381 01 10 02 (Asociaciones/Pres.) + 3 381 01 16 08 — separado del Gasto Admin' },
+    { id:'total_pres',lbl:'Total Gasto de Presidencia', tipo:'subtotal', hijos:['gto_pres'] },
+
+    // ── Costos Tributarios ────────────────────────────────────────────
     { id:'sec_trib', lbl:'Costos Tributarios', tipo:'subseccion' },
-    { id:'ret_iva_islr', lbl:'Retenciones de IVA, ISLR e IAE',         tipo:'item', signo:-1, fuente:'manual',
-      nota:'Del reporte de retenciones — cuentas de pasivo' },
-    { id:'total_trib',  lbl:'Total Costos Tributarios', tipo:'subtotal', hijos:['ret_iva_islr'] },
-    { id:'pct_trib',    lbl:'% Costo Tributario', tipo:'porcentaje', num:'total_trib', den:'total_ingr' },
+    // Los ítems trib_* se agregan dinámicamente del Excel de Costos Tributarios (Punto 8)
+    { id:'trib_excel', lbl:'Retenciones y Contribuciones Especiales', tipo:'subtotal_dyn',
+      grupo:'trib', nota:'Carga por Excel de Costos Tributarios' },
+    { id:'total_trib', lbl:'Total Costos Tributarios', tipo:'subtotal', hijos:['trib_excel'] },
+    { id:'pct_trib',   lbl:'% Costo Tributario', tipo:'porcentaje', num:'total_trib', den:'total_ingr' },
 
-    // Costo Bancario
+    // ── Costo Bancario ────────────────────────────────────────────────
     { id:'sec_banc', lbl:'Costo Bancario', tipo:'subseccion' },
-    { id:'com_banc',    lbl:'Comisiones Bancarias (3 381 02)',          tipo:'item', signo:-1, fuente:'mayor' },
-    { id:'total_banc',  lbl:'Total Costo Bancario', tipo:'subtotal', hijos:['com_banc'] },
-    { id:'pct_banc',    lbl:'% Costo Bancario', tipo:'porcentaje', num:'total_banc', den:'total_ingr' },
+    { id:'com_banc', lbl:'Comisiones Bancarias', tipo:'item', signo:-1, fuente:'mayor',
+      nota:'3 381 02 — todos los asientos con debe>0' },
+    { id:'total_banc', lbl:'Total Costo Bancario', tipo:'subtotal', hijos:['com_banc'] },
+    { id:'pct_banc',   lbl:'% Costo Bancario', tipo:'porcentaje', num:'total_banc', den:'total_ingr' },
 
-    // Totales
-    { id:'total_egr',   lbl:'TOTAL EGRESOS',        tipo:'total_egr' },
-    { id:'pct_egr',     lbl:'% Total Egresos',      tipo:'porcentaje', num:'total_egr', den:'total_ingr' },
+    // ── Totales ───────────────────────────────────────────────────────
+    { id:'total_egr', lbl:'TOTAL EGRESOS',        tipo:'total_egr' },
+    { id:'pct_egr',   lbl:'% Total Egresos',      tipo:'porcentaje', num:'total_egr', den:'total_ingr' },
 
-    // ── 3. SALDO ────────────────────────────────────────────────────
-    { id:'saldo_fc',    lbl:'💰 SALDO EN CAJA',     tipo:'saldo' },
+    // ── 3. SALDO ──────────────────────────────────────────────────────
+    { id:'saldo_fc',  lbl:'💰 SALDO EN CAJA',     tipo:'saldo' },
   ],
   collapsed:{},
 };
 
 function tfInit(){
-  try{ TF.notas=JSON.parse(localStorage.getItem('slf_tesoreria_notas')||'{}'); }catch(e){}
-  try{ TF.datos=JSON.parse(localStorage.getItem('slf_tesoreria_datos')||'{}'); }catch(e){}
+  try{ TF.notas      =JSON.parse(localStorage.getItem('slf_tesoreria_notas')  ||'{}'); }catch(e){}
+  try{ TF.datos      =JSON.parse(localStorage.getItem('slf_tesoreria_datos')  ||'{}'); }catch(e){}
+  try{ TF.exclusiones=JSON.parse(localStorage.getItem('slf_tf_exclusiones')   ||'{}'); }catch(e){}
+  try{ TF.impLabels  =JSON.parse(localStorage.getItem('slf_tf_imp_labels')    ||'{}'); }catch(e){}
+  try{ TF.tribLabels =JSON.parse(localStorage.getItem('slf_tf_trib_labels')   ||'{}'); }catch(e){}
   try{
     var rates=STATE.bcvRates||{};
     TF.MESES.forEach(function(m){ if(rates[m]&&rates[m].avg) TF.TASAS[m]=rates[m].avg; });
   }catch(e){}
   _tfLeerPrimasApp();
-  // Pre-cargar históricos Ene-May del Excel para campos manuales
-  // Se aplican solo si el usuario no ha ingresado valores propios
+  _tfAplicarDescs(); // aplicar descripciones editadas previamente
   Object.keys(TF_HIST).forEach(function(mes){ _tfPrecargarHistoricos(mes); });
 }
 
@@ -4204,20 +4247,62 @@ function tfInit(){
 // ══════════════════════════════════════════════════════════════════════
 
 function _tfLeerPrimasApp(){
-  // R1: Prima = mes.totals.a (Bs.) / tasa_bcv_promedio del mes
-  // Fuente: balance de comprobación cargado en el app
+  // ── R1: Prima cobrada — separación exacta Individual vs Polar ─────
+  // Fuente: balance de comprobación (STATE.months) + saldos crudos
+  //         (localStorage 'slf_saldos_crudos') por cuenta contable
+  //
+  // totals.a = fi_a + fc_a + vida_a + api_a + apc_a + rcv_a
+  //          = Prima Individual + Prima Polar (fc_a)
+  //
+  // Cuenta Polar (Funerario Colectivo): 5 521 01 01 03 02
+  // Tipo 5 (ingreso) → movimiento = -(crudoActual − crudoPrevio)
+  //
+  // Para cada mes:
+  //   prima_ind = (totals.a_Bs − fc_a_Bs) / tasa_bcv
+  //   prima_pol = fc_a_Bs / tasa_bcv
+  //
+  // Si no hay saldo crudo disponible (mes sin XLS procesado):
+  //   prima_pol = valor del TF_HIST[mes].ppol (histórico del Excel)
+  //   prima_ind = totals.a/tasa − prima_pol
+
   if(!STATE.months||!STATE.months.length) return;
-  STATE.months.forEach(function(mes){
+
+  var CTA_FC = '5 521 01 01 03 02'; // Primas cobradas Funerario Colectivo (Polar)
+  var MESES_O=['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+               'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  // Leer todos los saldoMaps crudos de localStorage
+  var saldosRaw={};
+  try{
+    var s=localStorage.getItem('slf_saldos_crudos');
+    if(s) saldosRaw=JSON.parse(s);
+  }catch(e){}
+
+  // Ordenar meses cronológicamente para calcular saldo anterior
+  var mesesOrdenados=STATE.months.slice().sort(function(a,b){
+    return MESES_O.indexOf((a.month||'').split(' ')[0])
+          -MESES_O.indexOf((b.month||'').split(' ')[0]);
+  });
+
+  mesesOrdenados.forEach(function(mes,idx){
     var mn=(mes.month||'').split(' ')[0]; if(!mn) return;
     if(!TF.datos[mn]) TF.datos[mn]={valores:{},asientos:{}};
+    var V=TF.datos[mn].valores;
+
+    // Tasa BCV promedio exacta del mes
     var tasa=(STATE.bcvRates&&STATE.bcvRates[mn]&&STATE.bcvRates[mn].avg)
              ?STATE.bcvRates[mn].avg:TF.TASAS[mn]||1;
     TF.TASAS[mn]=tasa;
+    V['_tasa_bcv']=tasa;
+
     var totalA_Bs=(mes.totals||{}).a||0;
-    TF.datos[mn].valores['prima_ind']=totalA_Bs/tasa;
-    TF.datos[mn].valores['_tasa_bcv']=tasa;
-    TF.datos[mn].valores['_prima_bs']=totalA_Bs;
-  });
+    V['_prima_bs']=totalA_Bs;
+
+    // Punto 1: Prima cobrada = totals.a completo (sin separar Polar/Individual)
+    // La prima_polar ya no se usa en la ESTRUCTURA
+    V['prima_ind'] = tasa>0 ? totalA_Bs/tasa : 0;
+    // prima_polar eliminada de ESTRUCTURA — totals.a es la prima total completa
+    });
 }
 
 function renderTesoreriaFlujo(){
@@ -4271,58 +4356,109 @@ function _tfCalcSubtotal(hijos, mes){
   return (hijos||[]).reduce(function(s,hid){ return s+Math.abs(_tfVal(hid,mes)); }, 0);
 }
 function _tfCalcTotalIngr(mes){
-  // Suma de todos los items con signo:1 en ESTRUCTURA
-  return _tfVal('prima_ind',mes)+_tfVal('prima_polar',mes);
+  // Total Ingresos = Prima Cobrada (totals.a / tasa_bcv)
+  // Fuente única: balance contable → _tfLeerPrimasApp()
+  return _tfVal('prima_ind',mes)||0;
 }
 function _tfCalcTotalEgr(mes){
-  // Total egresos = suma de todos los subtotales de secciones de egresos
-  return _tfCalcSubtotal(['sin_tot'],mes)
-       + _tfCalcSubtotal(['comis_prod'],mes)
-       + _tfCalcSubtotal(['otros_adm','nom_bs_tot','prov_usd','nom_usd','fluct_cam','impuestos'],mes)
-       + _tfCalcSubtotal(['ret_iva_islr'],mes)
-       + _tfCalcSubtotal(['com_banc'],mes);
+  // Siniestros (La Fe + Polar + Anticipados + Nueve Once separado)
+  var egr = _tfCalcSubtotal(['sin_tot','sin_nueve_once'],mes);
+  // Comisiones
+  egr += _tfCalcSubtotal(['comis_prod'],mes);
+  // Gasto de Administración (sub-cuentas Bs. + nómina + parafiscales + divisas + impuestos)
+  egr += _tfCalcSubtotal(['gadm_honorarios','gadm_proc_datos','gadm_serv_bas','gadm_publicidad',
+                           'gadm_inmuebles','gadm_relaciones','gadm_mantenimiento',
+                           'gadm_representacion','gadm_otros'],mes);
+  egr += _tfCalcSubtotal(['nom_bs_tot','nom_ivss','nom_faov','nom_inces'],mes);
+  egr += _tfCalcSubtotal(['prov_usd','nom_usd','fluct_cam'],mes);
+  egr += _tfCalcDynGrupo('imp',mes);    // impuestos dinámicos del Excel (tfCargarImpuestos)
+  // Gasto de Presidencia (ítem propio — fuera de Gasto Admin)
+  egr += _tfCalcSubtotal(['gto_pres'],mes);
+  // Costos Tributarios (retenciones dinámicas del Excel)
+  egr += _tfCalcDynGrupo('trib',mes);
+  // Costo Bancario
+  egr += _tfCalcSubtotal(['com_banc'],mes);
+  return egr;
 }
-// Valores históricas del Excel para impuestos y retenciones (Ene-May 2026)
-// Fuente: FLUJO_DE_CAJA_LA_FE_al_31-05-2026.xlsx
+// Suma todos los ítems dinámicos de un grupo (imp_* o trib_*)
+function _tfCalcDynGrupo(grupo,mes){
+  var V=(TF.datos[mes]||{}).valores||{};
+  var total=0;
+  Object.keys(V).forEach(function(k){
+    if(k.indexOf(grupo+'_')===0&&k.indexOf('_total')<0) total+=V[k]||0;
+  });
+  return total;
+}
 // ── Históricos Ene-May 2026 — del Flujo de Caja de Contabilidad ─────
 // Fuente: FLUJO_DE_CAJA_LA_FE_al_31-05-2026.xlsx · hoja "FLUJO DE CAJA $"
 // Tasas BCV exactas (promedio diario): Ene=341.60 Feb=392.76 Mar=446.67 Abr=479.97 May=515.73
 var TF_HIST = {
-  // imp = Impuestos + ISLR Anual (F60+F61 del Excel)
-  // ret = Retenciones IVA/ISLR/IAE (F66)
-  // prov= Anticipo a Proveedores USD (F33)
-  // nger= Nómina Gerentes USD (F51)
-  // dif = Diferencial Cambiario (F52)
-  // ppol= Prima Grupo Polar (F11)
-  'Enero':   {imp:27630.89, ret:15211.07, prov:9173.60,  nger:16630, dif:13796.39, ppol:51418.60},
-  'Febrero': {imp:19004.25, ret:14922.94, prov:9173.60,  nger:12440, dif:5613.58,  ppol:51418.60},
-  'Marzo':   {imp:11517.37, ret:7942.46,  prov:9173.60,  nger:19640, dif:7840.94,  ppol:51418.60},
-  'Abril':   {imp:15115.36, ret:10985.73, prov:16958.40, nger:16120, dif:5206.88,  ppol:58273.67},
-  'Mayo':    {imp:21797.02, ret:12686.01, prov:8739.24,  nger:15380, dif:2957.19,  ppol:58619.98}
+  // imp     = Total impuestos del Excel (ISLR+IVA+Patente+SUDEASEG+IGTF+ISLR Anual)
+  // imp_det = Desglose por tipo para pre-carga dinámica en flujo
+  // ret     = Retenciones IVA/ISLR/IAE (del reporte de retenciones — cuentas de pasivo)
+  // prov    = Anticipo a Proveedores USD
+  // nger    = Nómina Gerentes USD
+  // dif     = Diferencial Cambiario
+  // ppol    = Prima Grupo Polar (no se usa en ESTRUCTURA actual — prima consolidada)
+  'Enero': {
+    imp:27630.89, ret:15211.07, prov:9173.60, nger:16630, dif:13796.39, ppol:51418.60,
+    imp_det:{ imp_islr:14193.66, imp_iva:4031.13, imp_otros:9406.10 }
+  },
+  'Febrero': {
+    imp:19004.25, ret:14922.94, prov:9173.60, nger:12440, dif:5613.58, ppol:51418.60,
+    imp_det:{ imp_iva:725.89, imp_patente:3656.38, imp_otros:14622.00 }
+  },
+  'Marzo': {
+    imp:11517.37, ret:7942.46, prov:9173.60, nger:19640, dif:7840.94, ppol:51418.60,
+    imp_det:{ imp_iva:1817.55, imp_otros:9699.82 }
+  },
+  'Abril': {
+    imp:15115.36, ret:10985.73, prov:16958.40, nger:16120, dif:5206.88, ppol:58273.67,
+    imp_det:{ imp_islr:14820.47, imp_iva:3183.43, imp_otros:-2888.54 }
+  },
+  'Mayo': {
+    imp:21797.02, ret:12686.01, prov:8739.24, nger:15380, dif:2957.19, ppol:58619.98,
+    imp_det:{ imp_islr:31546.44, imp_iva:1631.84, imp_otros:-11381.26 }
+  }
 };
 
-// Pre-carga históricos del Excel para todos los campos manuales
-// Regla: si el usuario NO ha marcado _xxx_manual, siempre se usa el histórico del Excel
-// Esto garantiza máximo cuadre con Contabilidad para los meses Ene-May 2026
-// Para meses futuros (Jun+) el usuario puede ingresar los valores manualmente
+// Pre-carga históricos del Excel (Ene-May 2026) para campos manuales
+// Regla: solo si el usuario NO ha marcado _xxx_manual → usa histórico
+// Impuestos NO se pre-cargan aquí: vienen de tfCargarImpuestos() (Excel dinámico)
+// o el usuario los ingresa manualmente en la tabla. El histórico imp sigue en TF_HIST
+// para referencia pero NO se aplica automáticamente (evitar confusión con el Excel dinámico).
 function _tfPrecargarHistoricos(mes){
   if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
   var V=TF.datos[mes].valores;
   var h=TF_HIST[mes];
-  if(!h) return; // mes futuro sin histórico — dejar en blanco para carga manual
-  // Impuestos: SIEMPRE del Excel salvo que el usuario haya editado manualmente
-  // (el mayor analítico solo captura parte; el Excel incluye todos los pagos)
-  if(!V['_imp_manual'])  V['impuestos']   =h.imp;
-  // Retenciones: SIEMPRE del Excel (cuentas de pasivo, no en mayor de egresos)
+  if(!h) return; // mes futuro sin histórico
+  // Retenciones: del Excel (cuentas de pasivo — no están en el mayor de egresos)
   if(!V['_ret_manual'])  V['ret_iva_islr']=h.ret;
-  // Proveedores USD: del Excel si no hay carga manual del modal Divisas
+  // Proveedores USD: del Excel si no hay carga del modal Divisas o Excel Nómina
   if(!V['_prov_manual']) V['prov_usd']    =h.prov;
-  // Nómina Gerentes: del Excel si no hay carga manual del modal Divisas
+  // Nómina Gerentes: del Excel si no hay carga del modal Divisas o Excel Nómina
   if(!V['_nger_manual']) V['nom_usd']     =h.nger;
   // Diferencial Cambiario: del Excel si no hay carga manual
   if(!V['_dif_manual'])  V['fluct_cam']   =h.dif;
-  // Prima Polar: del Excel si no hay carga manual
-  if(!V['_ppol_manual']) V['prima_polar'] =h.ppol;
+  // prima_polar ya no se usa en la ESTRUCTURA — ignorar h.ppol
+  // Impuestos: pre-cargar los items dinámicos imp_* SOLO si no hay Excel cargado
+  // y no hay imp_manual marcado
+  if(!V['_imp_manual'] && h.imp_det){
+    // imp_det contiene el desglose por tipo: {imp_islr:X, imp_iva:Y, ...}
+    Object.keys(h.imp_det).forEach(function(k){
+      if(!V[k]) V[k]=h.imp_det[k];
+    });
+    // Guardar etiquetas si no existen
+    if(!TF.impLabels) TF.impLabels={};
+    var IMP_LABELS={
+      'imp_islr':'ISLR','imp_iva':'IVA','imp_patente':'Patente Industria y Comercio',
+      'imp_sudeaseg':'SUDEASEG','imp_igtf':'IGTF','imp_otros':'Otros Impuestos'
+    };
+    Object.keys(IMP_LABELS).forEach(function(k){
+      if(!TF.impLabels[k]) TF.impLabels[k]=IMP_LABELS[k];
+    });
+    try{localStorage.setItem('slf_tf_imp_labels',JSON.stringify(TF.impLabels));}catch(e){}
+  }
 }
 
 
@@ -4520,7 +4656,11 @@ function _tfRenderTabla(){
                :_tfCalcSubtotal(
                    nodo.num==='total_sin'?['sin_tot']
                   :nodo.num==='total_com'?['comis_prod']
-                  :nodo.num==='total_adm'?['otros_adm','nom_bs_tot','prov_usd','nom_usd','fluct_cam','impuestos']
+                  :nodo.num==='total_adm'?['gadm_honorarios','gadm_proc_datos','gadm_serv_bas',
+                     'gadm_publicidad','gadm_inmuebles','gadm_relaciones','gadm_mantenimiento',
+                     'gadm_representacion','gadm_otros','nom_bs_tot','nom_ivss','nom_faov','nom_inces',
+                     'prov_usd','nom_usd','fluct_cam']
+                  :nodo.num==='total_pres'?['gto_pres']
                   :nodo.num==='total_trib'?['ret_iva_islr']
                   :nodo.num==='total_banc'?['com_banc']:[]
                ,m);
@@ -4563,17 +4703,126 @@ function _tfRenderTabla(){
     rows+='</tr>';
   }
 
-  // ── Renderizar cada nodo de la ESTRUCTURA ───────────────────────
+  // ── Helpers para ítems dinámicos (imp_* y trib_*) ──────────────
+  function _getDynItems(grupo,mes){
+    var V=(TF.datos[mes]||{}).valores||{};
+    var items=[];
+    var labels=grupo==='imp'?(TF.impLabels||{}):(TF.tribLabels||{});
+    Object.keys(V).sort().forEach(function(k){
+      if(k.indexOf(grupo+'_')===0&&k.indexOf('_total')<0&&(V[k]||0)>0){
+        items.push({key:k,lbl:labels[k]||k.replace(grupo+'_','').replace(/_/g,' ').toUpperCase(),val:V[k]});
+      }
+    });
+    return items;
+  }
+
+  function filaItemDyn(key,lbl,mes,indent){
+    var nota=TF.notas[key]||{};
+    rows+='<tr id="tf-row-'+key+'" class="tf-row-item">';
+    rows+='<td class="tf-col-concepto" style="padding-left:'+(indent||20)+'px;font-style:italic">'
+      +(nota.checked?'<span style="color:#0D7A4E;margin-right:3px">&#x2705;</span>':'')
+      +lbl+'</td>';
+    rows+=notaBtns(key);
+    var acum=0;
+    meses.forEach(function(m){
+      var v=_tfVal(key,m)||0; acum+=v;
+      var esc_m=m.replace(/'/g,"\\'");
+      var esc_k=key.replace(/'/g,"\\'");
+      rows+='<td class="tf-num" style="padding:2px 4px">'
+        +'<input type="number" step="0.01" value="'+(v||'')+'" placeholder="0.00" '
+        +'onchange="tfSetManual(\'' +esc_k+ '\',\'' +esc_m+ '\',this.value)" '
+        +'style="width:100%;padding:3px 6px;border:1px solid var(--br);border-radius:4px;'
+        +'font-size:10px;text-align:right;background:rgba(74,45,143,.04);font-weight:600;color:var(--ink2)">'
+        +'</td>';
+    });
+    if(meses.length>1){
+      rows+='<td class="tf-num">'+fmtN(acum)+'</td><td></td>';
+    }
+    rows+='</tr>';
+  }
+
+  function filaSubtotalDyn(nodo){
+    // Subtotal con ítems dinámicos del Excel + un ítem base editable
+    var grupo=nodo.grupo||'';
+    var nota=TF.notas[nodo.id]||{};
+    // Renderizar ítems dinámicos del primer mes disponible
+    var primerMes=meses[0]||'';
+    var dynItems=_getDynItems(grupo,primerMes);
+    // Si no hay ítems dinámicos, mostrar un ítem editable por defecto
+    if(!dynItems.length){
+      rows+='<tr class="tf-row-item"><td class="tf-col-concepto" colspan="100%" style="padding:6px 16px;font-size:9px;color:var(--td);font-style:italic">'
+        +'Carga el archivo Excel de '+(grupo==='imp'?'Impuestos':'Costos Tributarios')+' para ver el detalle</td></tr>';
+    } else {
+      // Obtener todas las claves únicas en todos los meses
+      var allKeys={};
+      meses.forEach(function(m){
+        _getDynItems(grupo,m).forEach(function(it){ allKeys[it.key]=it.lbl; });
+      });
+      Object.keys(allKeys).sort().forEach(function(key){
+        filaItemDyn(key,allKeys[key],primerMes,28);
+      });
+    }
+    // Fila de subtotal del grupo
+    rows+='<tr id="tf-row-'+nodo.id+'" class="tf-row-subtotal">';
+    rows+='<td class="tf-col-concepto" style="padding-left:16px;font-weight:700">'
+      +(nota.checked?'<span style="color:#0D7A4E;margin-right:3px">✅</span>':'')
+      +nodo.lbl+'</td>';
+    rows+=notaBtns(nodo.id);
+    var acum=0,vLast=0,vPrev=0;
+    meses.forEach(function(m,i){
+      var v=_tfCalcDynGrupo(grupo,m); acum+=v;
+      if(i===meses.length-2) vPrev=v;
+      if(i===meses.length-1) vLast=v;
+      rows+='<td class="tf-num '+(v<0?'neg':'')+'">'+fmtN(v)+'</td>';
+    });
+    if(meses.length>1){
+      rows+='<td class="tf-num '+(acum<0?'neg':'')+'">'+fmtN(acum)+'</td>';
+      var dp=vPrev!==0?(vLast-vPrev)/Math.abs(vPrev)*100:0;
+      rows+='<td class="tf-var '+(dp>=0?'pos':'neg')+'">'+(isNaN(dp)?'—':(dp>=0?'▲ +':'▼ ')+dp.toFixed(1)+'%')+'</td>';
+    }
+    rows+='</tr>';
+  }
+
+  function filaSubtotalMayor(nodo){
+    var nota=TF.notas[nodo.id]||{};
+    rows+='<tr id="tf-row-'+nodo.id+'" class="tf-row-subtotal">';
+    rows+='<td class="tf-col-concepto" style="padding-left:16px;font-weight:700">'
+      +(nota.checked?'<span style="color:#0D7A4E;margin-right:3px">&#x2705;</span>':'')
+      +nodo.lbl
+      +'<span style="font-size:7px;color:var(--td);margin-left:4px;background:rgba(0,0,0,.06);padding:1px 4px;border-radius:3px">del mayor</span>'
+      +(nodo.nota?'<span style="font-size:7px;color:var(--td);margin-left:4px" title="'+nodo.nota+'">&#x2139;</span>':'')
+      +'</td>';
+    rows+=notaBtns(nodo.id);
+    var acum=0,vLast=0,vPrev=0;
+    var nodeId=nodo.id;
+    meses.forEach(function(m,i){
+      var v=_tfVal(nodeId,m)||0; acum+=v;
+      if(i===meses.length-2) vPrev=v;
+      if(i===meses.length-1) vLast=v;
+      rows+='<td class="tf-num" onclick="tfVerDetalle(\'' +nodeId+ '\',\'' +m+ '\')" '
+        +'style="cursor:pointer" title="Ver detalle de n&#243;mina">'+fmtN(v)+'</td>';
+    });
+    if(meses.length>1){
+      rows+='<td class="tf-num '+(acum<0?'neg':'')+'">'+fmtN(acum)+'</td>';
+      var dp=vPrev!==0?(vLast-vPrev)/Math.abs(vPrev)*100:0;
+      rows+='<td class="tf-var '+(dp>=0?'pos':'neg')+'">'+(isNaN(dp)?'&#8212;':(dp>=0?'&#9650; +':'&#9660; ')+dp.toFixed(1)+'%')+'</td>';
+    }
+    rows+='</tr>';
+  }
+
+  // ── Renderizar cada nodo de la ESTRUCTURA ─────────────────────────
   TF.ESTRUCTURA.forEach(function(nodo){
     switch(nodo.tipo){
-      case 'seccion':    filaSec(nodo);          break;
-      case 'subseccion': filaSec(nodo);          break;
-      case 'item':       filaItem(nodo,20);      break;
-      case 'subtotal':   filaSubtotal(nodo);     break;
-      case 'porcentaje': filaPorcentaje(nodo);   break;
-      case 'total_ingr': filaTotGen(nodo);       break;
-      case 'total_egr':  filaTotGen(nodo);       break;
-      case 'saldo':      filaTotGen(nodo);       break;
+      case 'seccion':       filaSec(nodo);              break;
+      case 'subseccion':    filaSec(nodo);              break;
+      case 'item':          filaItem(nodo,20);          break;
+      case 'subtotal':      filaSubtotal(nodo);         break;
+      case 'subtotal_mayor':filaSubtotalMayor(nodo);    break;
+      case 'subtotal_dyn':  filaSubtotalDyn(nodo);      break;
+      case 'porcentaje':    filaPorcentaje(nodo);       break;
+      case 'total_ingr':    filaTotGen(nodo);           break;
+      case 'total_egr':     filaTotGen(nodo);           break;
+      case 'saldo':         filaTotGen(nodo);           break;
     }
   });
 
@@ -4594,10 +4843,14 @@ function tfSetManual(id, mes, val){
   TF.datos[mes].valores[id]=v;
   // Flags de edición manual — preservan valor del usuario sobre histórico
   var flags={
-    impuestos:'_imp_manual', ret_iva_islr:'_ret_manual',
+    ret_iva_islr:'_ret_manual',
     prov_usd:'_prov_manual', nom_usd:'_nger_manual',
-    fluct_cam:'_dif_manual', prima_polar:'_ppol_manual'
+    fluct_cam:'_dif_manual', prima_polar:'_ppol_manual',
+    gto_pres:'_pres_manual'
   };
+  // Para imp_* dinámicos: marcar _imp_manual genérico
+  if(id.indexOf('imp_')===0) TF.datos[mes].valores['_imp_manual']=true;
+  if(id.indexOf('trib_')===0) TF.datos[mes].valores['_ret_manual']=true;
   if(flags[id]) TF.datos[mes].valores[flags[id]]=true;
   try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
   _tfRenderKPIs();
@@ -4817,18 +5070,32 @@ function tfCargarMayor(evt){
         if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
         var V=TF.datos[mes].valores; var A=TF.datos[mes].asientos;
 
-        // Reset SOLO de las categorías que vienen del mayor analítico.
-        // Valores cargados manualmente (nom_usd, prov_usd, fluct_cam,
-        // ret_iva_islr, _div_*) se preservan.
-        var CATS_MAYOR=['sin_tot',
-                        'nom_bs_tot','nom_sueldos','nom_cesta','nom_bonos','nom_otros',
-                        'comis_prod','impuestos','com_banc',
-                        'otros_adm'];
+        // Reset de categorías del mayor. Valores manuales (nom_usd, prov_usd,
+        // fluct_cam, ret_iva_islr, _div_*, imp_*_excel, trib_*_excel) se preservan.
+        var CATS_MAYOR=[
+          // Siniestros
+          'sin_tot','sin_nueve_once',
+          // Comisiones
+          'comis_prod',
+          // Nómina Personal (Bs.) + Parafiscales
+          'nom_bs_tot','nom_sueldos','nom_cesta','nom_bonos','nom_otros',
+          'nom_ivss','nom_faov','nom_inces',
+          // Gasto de Presidencia (ítem propio fuera de Gasto Admin)
+          'gto_pres',
+          // Gastos Admin por sub-concepto contable (excl. Presidencia)
+          'gadm_honorarios','gadm_proc_datos','gadm_serv_bas',
+          'gadm_publicidad','gadm_inmuebles','gadm_relaciones',
+          'gadm_mantenimiento','gadm_representacion','gadm_otros',
+          // Impuestos del mayor (referencia interna — valor real viene del Excel)
+          'imp_mayor',
+          // Comisiones Bancarias
+          'com_banc',
+        ];
         CATS_MAYOR.forEach(function(k){V[k]=0; A[k]=[];});
 
         porMes[mes].forEach(function(a){
-          // Normalización: '33210101030100000000000' → '33210101030100' (mismo que '3 321 01 01 03 01' sin espacios ni ceros)
-          function norm(c){ return c.replace(/\s/g,'').replace(/0+$/,''); }
+          // Normalización: '33210101030100000000000' → '332101010301' (quita solo espacios — los ceros son parte del código contable)
+          function norm(c){ return c.replace(/\s/g,''); } // solo espacios — NO rstrip ceros (ceros son parte del código contable)
           var ctaN=norm(a.cta);
           function mc(cat){ return ctaN===norm(cat)||ctaN.startsWith(norm(cat)); }
           function add(cat,lbl){
@@ -4842,57 +5109,91 @@ function tfCargarMayor(evt){
             });
           }
 
-          // ── R2: SINIESTROS — TODOS los asientos (manuales+auto) ─────
-          // fi_j+fc_j (3 321 01 01) · api_j (3 321 01 01 01 01) · vida_j (3 301 01 01)
-          // Nueve Once: 3 321 09 01 01 01 solo si es EGRESO automático
-          if(mc('3 321 01 01')||mc('3 301 01 01')){add('sin_tot','Siniestros');return;}
-          if(mc('3 321 09 01 01 01')&&a.auto&&a.tp==='EGRESO'){add('sin_tot','Sin.NueveOnce');return;}
+          // ══════════════════════════════════════════════════════════════
+          // REGLAS DE CLASIFICACIÓN DEFINITIVAS R2–R8
+          // Orden estricto: más específica → más general
+          // ══════════════════════════════════════════════════════════
 
-          // ── R4: NÓMINA PERSONAL — TODOS con debe>0 ──────────────────
-          // Consolidado en nom_bs_tot para la ESTRUCTURA (ítem único visible)
-          // Sub-cuentas guardadas en asientos para detalle al hacer clic
-          if(mc('3 381 01 01 01')){add('nom_sueldos','Sueldos');
-            V['nom_bs_tot']=(V['nom_bs_tot']||0)+a.debe/tasa; return;}
-          if(mc('3 381 01 01 08')){add('nom_cesta','CestaTicket');
-            V['nom_bs_tot']=(V['nom_bs_tot']||0)+a.debe/tasa; return;}
-          if(mc('3 381 01 01 02')||mc('3 381 01 01 03')||mc('3 381 01 01 04')||
-             mc('3 381 01 01 05')||mc('3 381 01 01 06')){add('nom_bonos','Bonif/Vac');
-            V['nom_bs_tot']=(V['nom_bs_tot']||0)+a.debe/tasa; return;}
-          if(mc('3 381 01 01')){add('nom_otros','OtrosPersonal');
-            V['nom_bs_tot']=(V['nom_bs_tot']||0)+a.debe/tasa; return;}
+          // ── R2a: SINIESTROS PAGADOS — todos con debe>0 ──────────────
+          if(mc('3 321 01 01')||mc('3 301 01 01')){add('sin_tot','Siniestros'); return;}
 
-          // ── R8: COMISIONES BANCARIAS — TODOS incl. manuales (NOTAS)──
-          if(mc('3 381 02')){add('com_banc','ComBancaria');return;}
+          // ── R2b: PLAN CAPITADO GRUPO NUEVE ONCE, C.A. ───────────────
+          // Solo EGRESO automático (excluye previsiones manuales de la cuenta)
+          if(mc('3 321 09 01 01 01')&&a.auto&&a.tp==='EGRESO'){
+            add('sin_nueve_once','Plan Capitado Nueve Once C.A.'); return;}
 
-          // ── R3: COMISIONES VENDEDORES — TODOS con debe>0 ─────────────
-          if(mc('3 381 01 15')){add('comis_prod','ComisVendedor');return;}
+          // ── R4a: PARAFISCALES — gasto de personal, no de impuestos ──
+          if(mc('3 381 01 02 04 02')||mc('3 381 01 02 04 03')){add('nom_ivss','IVSS'); return;}
+          if(mc('3 381 01 02 04 04')){add('nom_faov','FAOV/Política Habitacional'); return;}
+          if(mc('3 381 01 02 04 01')){add('nom_inces','INCES'); return;}
 
-          // ── R6: IMPUESTOS — solo del mayor (complementar con carga manual)
-          // El mayor captura pagos reales; el Excel también incluye pagos
-          // directos de ISLR anual, SUDEASEG, Patente que se cargan manualmente
+          // ── R6: IMPUESTOS (3 381 01 02) — excl. parafiscales y prov ─
           if(mc('3 381 01 02')){
-            var PK=['PREVISION','PREVISIÓN','PROVISION','PROVISIÓN','REGISTRO DE LAS PREVISIONES',
-                    'REGISTRO DE LAS CONTRIBUCIONES'];
-            var esProv=a.tp===''&&PK.some(function(k){return a.desc.toUpperCase().indexOf(k)>=0;});
-            if(!esProv) add('impuestos','Impuesto');
+            var PK6=['PREVISION','PREVISIÓN','PROVISION','PROVISIÓN',
+                     'REGISTRO DE LAS PREVISIONES','REGISTRO DE LAS CONTRIBUCIONES'];
+            var esProvImp=a.tp===''&&PK6.some(function(pw){
+              return a.desc.toUpperCase().indexOf(pw)>=0;});
+            if(!esProvImp) add('imp_mayor','Impuesto del Mayor'); // ref. interna
             return;
           }
 
-          // ── Excluir partidas no monetarias ───────────────────────────
-          if(mc('3 381 04')) return; // fluct.cambiaria — asiento contable, no bancario
-          if(mc('3 381 06')) return; // depreciación — no es salida de caja
-          if(mc('3 381 07')) return; // provisiones técnicas — no es salida de caja
+          // ── R8: COMISIONES BANCARIAS — todos incl. manuales ─────────
+          if(mc('3 381 02')){add('com_banc','Comisión Bancaria'); return;}
 
-          // ── R5: GASTOS ADMIN — resto de 3 381 01 ─────────────────────
-          // EXCLUIR tipo INGRESOS: cobros de prima contabilizados en esta cuenta
-          if(a.tp==='INGRESOS') return;
-          // EXCLUIR previsiones administrativas sin comprobante de pago
-          var PREV_KW=['PREVISION','PREVISIÓN','PROVISION','PROVISIÓN'];
-          var esPrevAdm=a.tp===''&&PREV_KW.some(function(k){return a.desc.toUpperCase().indexOf(k)>=0;});
-          if(esPrevAdm) return;
-          if(mc('3 381 01')){add('otros_adm','GtoAdmin');return;}
-          // Gastos directos por ramo (vida_g: 3 301 09 01, fi_g: 3 321 03 01)
-          if(mc('3 301 09 01')||mc('3 321 03 01')){add('otros_adm','GtoAdmRamo');return;}
+          // ── R3: COMISIONES VENDEDORES — todos ────────────────────────
+          if(mc('3 381 01 15')){add('comis_prod','Comisión a Vendedor'); return;}
+
+          // ── Excluir no-monetarios ─────────────────────────────────────
+          if(mc('3 381 04')||mc('3 381 06')||mc('3 381 07')) return;
+
+          // ── R4b: NÓMINA PERSONAL en Bs. — todos con debe>0 ───────────
+          // addNom: guarda en sub-categoría Y en nom_bs_tot (detalle consolidado)
+          function addNom(subcat,lbl){
+            var usdNom=a.debe/tasa;
+            V[subcat]=(V[subcat]||0)+usdNom;
+            (A[subcat]=A[subcat]||[]).push({nro:a.nro,tp:a.tp,nro_doc:a.nro_doc,
+              desc:a.desc.substring(0,100),usd:usdNom,bs:a.debe,
+              seq:a.seq,tasa:tasa,auto:a.auto,nombre:a.nombre||lbl,subcat:subcat});
+            V['nom_bs_tot']=(V['nom_bs_tot']||0)+usdNom;
+            (A['nom_bs_tot']=A['nom_bs_tot']||[]).push({nro:a.nro,tp:a.tp,nro_doc:a.nro_doc,
+              desc:a.desc.substring(0,100),usd:usdNom,bs:a.debe,
+              seq:a.seq,tasa:tasa,auto:a.auto,nombre:lbl+' ('+a.nombre+')',subcat:subcat});
+          }
+          if(mc('3 381 01 01 01')){addNom('nom_sueldos','Sueldos y Salarios'); return;}
+          if(mc('3 381 01 01 08')){addNom('nom_cesta','Cesta Ticket'); return;}
+          if(mc('3 381 01 01 02')||mc('3 381 01 01 03')||mc('3 381 01 01 04')||
+             mc('3 381 01 01 05')||mc('3 381 01 01 06')){addNom('nom_bonos','Bonificaciones/Vacaciones'); return;}
+          if(mc('3 381 01 01')){addNom('nom_otros','Otros Gastos de Personal'); return;}
+
+          // ── R5: GASTOS ADMIN — por sub-concepto contable ─────────────
+          if(a.tp==='INGRESOS') return; // cobros de prima: no son egresos
+          var PK5=['PREVISION','PREVISIÓN','PROVISION','PROVISIÓN'];
+          var esPrevAdm=a.tp===''&&PK5.some(function(pw){
+            return a.desc.toUpperCase().indexOf(pw)>=0;});
+          if(esPrevAdm) return; // previsiones sin pago real
+
+          // ── R_PRES: GASTO DE PRESIDENCIA — ítem propio ───────────────
+          // 3 381 01 10 02 (ASOCIACIONES): todos sus asientos son gastos de
+          //   Presidencia confirmados por descripción ("Pago Presidencia",
+          //   "Gastos de Presidencia", "Gastos Varios Presidencia")
+          // 3 381 01 16 08 (OTROS GASTOS ADMON): contiene gastos de Presidencia
+          //   mezclados — se separa completo para no fragmentar
+          // IMPORTANTE: estas reglas deben ir ANTES de mc('3 381 01 10')
+          //   y mc('3 381 01 16') para evitar que caigan en gadm_relaciones/gadm_otros
+          if(mc('3 381 01 10 02')){add('gto_pres','Gasto de Presidencia'); return;}
+          if(mc('3 381 01 16 08')){add('gto_pres','Gasto de Presidencia'); return;}
+
+          // Sub-clasificación por código contable (orden de especificidad):
+          if(mc('3 381 01 11')){add('gadm_honorarios','Honorarios Profesionales');     return;}
+          if(mc('3 381 01 12')){add('gadm_proc_datos','Procesamiento de Datos');       return;}
+          if(mc('3 381 01 09')){add('gadm_serv_bas','Servicios Básicos');              return;}
+          if(mc('3 381 01 08')){add('gadm_publicidad','Publicidad y Propaganda');      return;}
+          if(mc('3 381 01 14')){add('gadm_inmuebles','Inmuebles y Arrendamientos');    return;}
+          if(mc('3 381 01 10')){add('gadm_relaciones','Relaciones Públicas');          return;}
+          if(mc('3 381 01 04')){add('gadm_mantenimiento','Mantenimiento y Reparaciones'); return;}
+          if(mc('3 381 01 05')){add('gadm_representacion','Gastos de Representación'); return;}
+          if(mc('3 381 01')){add('gadm_otros','Otros Gastos Administrativos');         return;}
+          if(mc('3 301 09 01')||mc('3 321 03 01')){add('gadm_otros','Gto.Adm.Ramo');  return;}
         });
       });
 
@@ -5169,6 +5470,465 @@ function _tfActualizarEstadoCarga(modulo, texto){
     cont.appendChild(el);
   }
   el.textContent=texto;
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
+// SISTEMA DE EXCLUSIONES DE ASIENTOS (Punto 3)
+// ══════════════════════════════════════════════════════════════════════
+// TF.exclusiones[mes][cat][nro] = true → asiento excluido del total
+// Se persiste en localStorage 'slf_tf_exclusiones'
+function _tfExcLoad(){
+  try{return JSON.parse(localStorage.getItem('slf_tf_exclusiones')||'{}');}catch(e){return{};}
+}
+function _tfExcSave(){
+  try{localStorage.setItem('slf_tf_exclusiones',JSON.stringify(TF.exclusiones||{}));}catch(e){}
+}
+function tfToggleExclusion(mes,cat,nro,chk){
+  if(!TF.exclusiones) TF.exclusiones=_tfExcLoad();
+  if(!TF.exclusiones[mes]) TF.exclusiones[mes]={};
+  if(!TF.exclusiones[mes][cat]) TF.exclusiones[mes][cat]={};
+  if(chk) TF.exclusiones[mes][cat][nro]=true;
+  else delete TF.exclusiones[mes][cat][nro];
+  _tfExcSave();
+}
+function _tfEsExcluido(mes,cat,nro){
+  if(!TF.exclusiones) TF.exclusiones=_tfExcLoad();
+  return !!(TF.exclusiones[mes]&&TF.exclusiones[mes][cat]&&TF.exclusiones[mes][cat][nro]);
+}
+function tfActualizarDesdeDetalle(cat,mes){
+  // Recalcular valor de cat excluyendo asientos marcados
+  if(!TF.datos[mes]) return;
+  var A=TF.datos[mes].asientos||{};
+  var asientos=A[cat]||[];
+  var total=0;
+  asientos.forEach(function(a){
+    if(!_tfEsExcluido(mes,cat,a.nro)) total+=a.usd||0;
+  });
+  TF.datos[mes].valores[cat]=total;
+  try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
+  _tfRenderKPIs(); _tfRenderTabla();
+  showToast('Saldo actualizado: '+cat+' = USD '+total.toFixed(2));
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// EDICIÓN DE DESCRIPCIÓN (Punto 4)
+// ══════════════════════════════════════════════════════════════════════
+function _tfDescLoad(){
+  try{return JSON.parse(localStorage.getItem('slf_tf_descs')||'{}');}catch(e){return{};}
+}
+function tfGuardarDesc(nro,val){
+  var d=_tfDescLoad(); d[nro]=val.trim();
+  try{localStorage.setItem('slf_tf_descs',JSON.stringify(d));}catch(e){}
+  // Actualizar en todos los asientos cargados
+  Object.keys(TF.datos).forEach(function(mes){
+    var AA=TF.datos[mes].asientos||{};
+    Object.keys(AA).forEach(function(cat){
+      (AA[cat]||[]).forEach(function(a){
+        if(a.nro===nro) a.desc=val.trim();
+      });
+    });
+  });
+  try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
+}
+function _tfAplicarDescs(){
+  var d=_tfDescLoad();
+  if(!Object.keys(d).length) return;
+  Object.keys(TF.datos).forEach(function(mes){
+    var AA=TF.datos[mes].asientos||{};
+    Object.keys(AA).forEach(function(cat){
+      (AA[cat]||[]).forEach(function(a){
+        if(d[a.nro]) a.desc=d[a.nro];
+      });
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// MODAL DE DETALLE — versión mejorada con exclusión y edición de desc
+// (reemplaza tfVerDetalle)
+// ══════════════════════════════════════════════════════════════════════
+function tfVerDetalle(id,mes){
+  var modal=document.getElementById('tf-detalle-modal');
+  var titulo=document.getElementById('tf-det-titulo');
+  var subtit=document.getElementById('tf-det-subtitulo');
+  var cuerpo=document.getElementById('tf-det-body');
+  if(!modal) return;
+
+  if(!TF.exclusiones) TF.exclusiones=_tfExcLoad();
+
+  // Para nom_bs_tot: consolidar asientos de todas las sub-cuentas
+  var asientos=((TF.datos[mes]||{}).asientos||{})[id]||[];
+
+  var tasaDet=(STATE.bcvRates&&STATE.bcvRates[mes]&&STATE.bcvRates[mes].avg)
+              ?STATE.bcvRates[mes].avg:TF.TASAS[mes]||1;
+
+  function fD(v){return(Math.abs(v)||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+  // Buscar etiqueta del ítem en ESTRUCTURA
+  function buscarLbl(ns){
+    for(var i=0;i<ns.length;i++){
+      if(ns[i].id===id) return ns[i].lbl;
+    }
+    return id;
+  }
+  var lbl=buscarLbl(TF.ESTRUCTURA);
+  titulo.textContent=lbl;
+
+  var totalIncl=asientos.reduce(function(s,a){
+    return s+(!_tfEsExcluido(mes,id,a.nro)?a.usd||0:0);},0);
+  var totalExcl=asientos.reduce(function(s,a){
+    return s+(_tfEsExcluido(mes,id,a.nro)?a.usd||0:0);},0);
+  var totalBs=asientos.reduce(function(s,a){return s+(a.bs||(a.usd*tasaDet)||0);},0);
+
+  subtit.innerHTML=mes+' 2026'
+    +' &nbsp;·&nbsp; <b>'+asientos.length+'</b> asientos'
+    +' &nbsp;·&nbsp; USD '+fD(totalIncl)
+    +(totalExcl>0?' &nbsp;·&nbsp; <span style="color:#B07A00">Excluido: USD '+fD(totalExcl)+'</span>':'')
+    +' &nbsp;·&nbsp; BCV Bs.'+tasaDet.toFixed(2);
+
+  if(!asientos.length){
+    cuerpo.innerHTML='<div style="text-align:center;padding:24px;color:var(--td)">'
+      +'<div style="font-size:22px;margin-bottom:6px">📂</div>'
+      +'<div style="font-size:11px;font-weight:600;margin-bottom:4px">Sin asientos de detalle</div>'
+      +'<div style="font-size:10px">Carga el Mayor Analítico para ver el historial</div></div>';
+  } else {
+    var rs=asientos.slice(0,500).map(function(a,idx){
+      var excl=_tfEsExcluido(mes,id,a.nro);
+      var tasaA=a.tasa||tasaDet;
+      var bsA=a.bs||(a.usd*tasaA)||0;
+      var bg=excl?'rgba(176,122,0,.08)':(idx%2===0?'var(--s)':'var(--s2)');
+      var styleExcl=excl?'opacity:.5;text-decoration:line-through;':'';
+      var nroEsc=a.nro.replace(/'/g,"\\'");
+      var descActual=(a.desc||'').replace(/"/g,'&quot;').replace(/'/g,"\\'");
+      return '<tr style="background:'+bg+';'+styleExcl+'">'
+        // Col 1: checkbox exclusión
+        +'<td style="padding:4px 6px;text-align:center;width:28px">'
+        +'<input type="checkbox" '+(excl?'checked':'')
+        +' onchange="tfToggleExclusion(\''+mes+'\',\''+id+'\',\''+nroEsc+'\',this.checked)"'
+        +' style="cursor:pointer;accent-color:#B07A00" title="Excluir del análisis"></td>'
+        // Col 2: Nro Asiento
+        +'<td style="padding:4px 6px;font-size:8.5px;color:var(--td);font-family:monospace;white-space:nowrap">'+a.nro+'</td>'
+        // Col 3: Tipo Doc
+        +'<td style="padding:4px 6px;font-size:8px;white-space:nowrap">'
+        +'<span style="background:var(--pb);padding:1px 5px;border-radius:4px;font-size:7.5px;font-weight:600;color:var(--p)">'+a.tp+'</span></td>'
+        // Col 4: Nro Doc
+        +'<td style="padding:4px 6px;font-size:8.5px;color:var(--td)">'+a.nro_doc+'</td>'
+        // Col 5: Descripción EDITABLE (clic para editar)
+        +'<td style="padding:4px 6px;font-size:9.5px;max-width:280px" title="Clic para editar descripción">'
+        +'<span id="desc-txt-'+nroEsc+'" style="cursor:text;border-bottom:1px dashed var(--br)"'
+        +' onclick="tfEditarDesc(\''+nroEsc+'\',\''+descActual+'\')">'+a.desc+'</span></td>'
+        // Col 6: Monto Bs
+        +'<td style="padding:4px 6px;font-size:9.5px;text-align:right;font-family:monospace;color:#8B1A1A;white-space:nowrap">'+fD(bsA)+'</td>'
+        // Col 7: Tasa
+        +'<td style="padding:4px 6px;font-size:8px;text-align:right;color:var(--td);white-space:nowrap">÷'+fD(tasaA)+'</td>'
+        // Col 8: Monto USD
+        +'<td style="padding:4px 6px;font-size:9.5px;text-align:right;font-family:monospace;font-weight:700;color:var(--p);white-space:nowrap">'+fD(a.usd)+'</td>'
+        +'</tr>';
+    }).join('');
+
+    cuerpo.innerHTML=
+      '<div style="background:var(--s2);padding:7px 12px;border-radius:8px;margin-bottom:8px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">'
+      +'<span style="font-size:9px;color:var(--td)">📋 <b>'+asientos.length+'</b> asientos</span>'
+      +'<span style="font-size:9px;color:var(--td)">💱 BCV: <b>Bs.'+tasaDet.toFixed(2)+'</b></span>'
+      +'<span style="font-size:9px;color:#8B1A1A">Bs.: <b>'+fD(totalBs)+'</b></span>'
+      +'<span style="font-size:9px;color:var(--p)">USD incluido: <b>'+fD(totalIncl)+'</b></span>'
+      +(totalExcl>0?'<span style="font-size:9px;color:#B07A00">USD excluido: <b>'+fD(totalExcl)+'</b></span>':'')
+      +'<button class="btn btn-primary" style="font-size:9px;padding:4px 12px;margin-left:auto"'
+      +' onclick="tfActualizarDesdeDetalle(\''+id+'\',\''+mes+'\')" title="Recalcular excluyendo asientos marcados">'
+      +'↺ Actualizar saldo</button>'
+      +'</div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:780px">'
+      +'<thead><tr style="background:var(--ink2);color:#fff">'
+      +'<th style="padding:5px 6px;font-size:8px;text-align:center" title="Excluir del análisis">✕</th>'
+      +'<th style="padding:5px 6px;font-size:8px;text-align:left;white-space:nowrap">Nro. Asiento</th>'
+      +'<th style="padding:5px 6px;font-size:8px;text-align:left">Tipo</th>'
+      +'<th style="padding:5px 6px;font-size:8px;text-align:left">Doc.</th>'
+      +'<th style="padding:5px 6px;font-size:8px;text-align:left">Descripción <span style="font-weight:400;opacity:.7">(clic para editar)</span></th>'
+      +'<th style="padding:5px 6px;font-size:8px;text-align:right;white-space:nowrap">Monto Bs.</th>'
+      +'<th style="padding:5px 6px;font-size:8px;text-align:right">Tasa</th>'
+      +'<th style="padding:5px 6px;font-size:8px;text-align:right;white-space:nowrap">Monto USD</th>'
+      +'</tr></thead><tbody>'+rs+'</tbody>'
+      +'<tfoot><tr style="background:var(--ink2);color:#fff;font-weight:800">'
+      +'<td colspan="5" style="padding:6px 8px;font-size:10px">TOTAL · '+asientos.length+' asientos</td>'
+      +'<td style="padding:6px 8px;text-align:right;font-family:monospace">'+fD(totalBs)+'</td>'
+      +'<td></td>'
+      +'<td style="padding:6px 8px;text-align:right;font-family:monospace;font-size:11px">'+fD(totalIncl)+'</td>'
+      +'</tr></tfoot></table></div>'
+      +(asientos.length>500?'<p style="font-size:9px;color:var(--td);text-align:center;padding:6px">Mostrando 500 de '+asientos.length+' — exporta a Excel para ver todos</p>':'');
+  }
+  modal.style.display='flex';
+}
+
+function tfEditarDesc(nro,descActual){
+  var span=document.getElementById('desc-txt-'+nro);
+  if(!span||span.querySelector('input')) return; // ya en edición
+  var inp=document.createElement('input');
+  inp.type='text'; inp.value=descActual;
+  inp.style.cssText='width:100%;padding:2px 6px;font-size:9.5px;border:1px solid var(--p);border-radius:4px;background:var(--s);color:var(--ink2)';
+  inp.title='Enter para guardar · Esc para cancelar';
+  span.innerHTML=''; span.appendChild(inp);
+  inp.focus(); inp.select();
+  function guardar(){
+    var nuevo=inp.value.trim()||descActual;
+    tfGuardarDesc(nro,nuevo);
+    span.innerHTML=nuevo;
+    span.onclick=function(){tfEditarDesc(nro,nuevo);};
+    showToast('Descripción actualizada');
+  }
+  inp.onblur=guardar;
+  inp.onkeydown=function(e){
+    if(e.key==='Enter'){guardar(); e.preventDefault();}
+    if(e.key==='Escape'){span.innerHTML=descActual; inp.onblur=null;}
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// CARGA EXCEL — NÓMINA GERENTES (Punto 6)
+// Formato: Nombre | Área | Mes | Monto USD | Tasa Compra
+// Las divisas pueden comprarse en uno o más momentos por mes
+// ══════════════════════════════════════════════════════════════════════
+function tfCargarNominaGerentes(evt){
+  var file=evt.target.files[0]; if(!file) return;
+  var status=document.getElementById('tf-load-status');
+  if(status) status.innerHTML='⏳ Procesando Nómina Gerentes...';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(e.target.result,{type:'array'});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      // Validar encabezado
+      var H=rows[0]||[];
+      var iNom=_col(H,['nombre','name','trabajador','empleado']);
+      var iArea=_col(H,['area','área','cargo','departamento']);
+      var iMes=_col(H,['mes','month','periodo','período']);
+      var iMonto=_col(H,['monto','amount','usd','monto usd','salario']);
+      var iTasa=_col(H,['tasa','tasa compra','tasa_compra','tasa paralela','usdt']);
+      if(iMonto<0){
+        if(status) status.innerHTML='❌ No se encontró columna Monto USD. Ver formato requerido.';
+        evt.target.value=''; return;
+      }
+      // Acumular por mes
+      var porMes={};
+      for(var r=1;r<rows.length;r++){
+        var row=rows[r];
+        var mes=_normMes(String(row[iMes]||'').trim());
+        var monto=parseFloat(String(row[iMonto]).replace(/[,\.]/g,function(m,o,s){
+          return s.lastIndexOf('.')<s.lastIndexOf(',')?(m===','?'.':(o===s.lastIndexOf('.')?'':'')):
+          (m==='.'&&o!==s.lastIndexOf('.')?' ':m);}))||0;
+        var tasa=parseFloat(String(row[iTasa>=0?iTasa:0]||'0'))||0;
+        var nombre=String(row[iNom>=0?iNom:0]||'').trim();
+        var area=String(row[iArea>=0?iArea:0]||'').trim();
+        if(!mes||monto<=0) continue;
+        if(!porMes[mes]) porMes[mes]={empleados:[],totalUSD:0,tasas:[]};
+        porMes[mes].empleados.push({nombre:nombre,area:area,monto:monto,tasa:tasa});
+        porMes[mes].totalUSD+=monto;
+        if(tasa>0&&porMes[mes].tasas.indexOf(tasa)<0) porMes[mes].tasas.push(tasa);
+      }
+      // Guardar en TF.datos
+      Object.keys(porMes).forEach(function(mes){
+        if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
+        var V=TF.datos[mes].valores; var d=porMes[mes];
+        V['nom_usd']=d.totalUSD;
+        V['_nom_gerentes_det']=d.empleados; // detalle para mostrar
+        V['_nger_manual']=true;
+        // Diferencial: si hay tasa de compra, calcular con la tasa promedio de las compras
+        var bcv=(STATE.bcvRates&&STATE.bcvRates[mes]&&STATE.bcvRates[mes].avg)||TF.TASAS[mes]||1;
+        if(d.tasas.length>0){
+          // Calcular diferencial ponderado por cada empleado con su tasa
+          var totalFluct=d.empleados.reduce(function(s,emp){
+            var t=emp.tasa||bcv;
+            return s+emp.monto*(t-bcv)/bcv;
+          },0);
+          V['fluct_cam']=(V['fluct_cam']||0)+totalFluct;
+          V['_dif_manual']=true;
+        }
+        // Sumar prov_usd al diferencial también si tiene tasa
+        var provUSD=V['prov_usd']||0;
+        var firstTasa=d.tasas[0]||bcv;
+        if(provUSD>0&&firstTasa>bcv&&!V['_dif_manual']){
+          V['fluct_cam']=(V['fluct_cam']||0)+provUSD*(firstTasa-bcv)/bcv;
+        }
+      });
+      try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
+      var mesesCarg=Object.keys(porMes).join(', ');
+      if(status) status.innerHTML='✅ Nómina Gerentes: '+mesesCarg;
+      _tfActualizarEstadoCarga('nom','✅ Nómina Gerentes: '+mesesCarg);
+      showToast('Nómina Gerentes cargada: '+mesesCarg);
+      _tfRenderKPIs(); _tfRenderTabla();
+    }catch(ex){
+      if(status) status.innerHTML='❌ Error: '+ex.message;
+      console.error('tfCargarNominaGerentes:',ex);
+    }
+    evt.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// CARGA EXCEL — IMPUESTOS (Punto 7)
+// Formato: Mes | Tipo de Impuesto | Monto USD
+// Cada tipo de impuesto crea su propio ítem dinámico imp_*
+// ══════════════════════════════════════════════════════════════════════
+function tfCargarImpuestos(evt){
+  var file=evt.target.files[0]; if(!file) return;
+  var status=document.getElementById('tf-load-status');
+  if(status) status.innerHTML='⏳ Procesando Impuestos...';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(e.target.result,{type:'array'});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      var H=rows[0]||[];
+      var iMes=_col(H,['mes','month','periodo','período']);
+      var iTipo=_col(H,['tipo','tipo impuesto','impuesto','concepto','descripcion','descripción']);
+      var iMonto=_col(H,['monto','amount','usd','monto usd','valor']);
+      if(iMes<0||iTipo<0||iMonto<0){
+        if(status) status.innerHTML='❌ Columnas requeridas: Mes | Tipo Impuesto | Monto USD. Ver formato.';
+        evt.target.value=''; return;
+      }
+      // Reset de claves imp_* para los meses incluidos
+      var mesesTocados={};
+      for(var r=1;r<rows.length;r++){
+        var mes=_normMes(String(rows[r][iMes]||'').trim());
+        if(mes) mesesTocados[mes]=true;
+      }
+      Object.keys(mesesTocados).forEach(function(mes){
+        if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
+        // Limpiar claves imp_* previas del Excel (no del mayor)
+        Object.keys(TF.datos[mes].valores).forEach(function(k){
+          if(k.indexOf('imp_')===0&&k!=='imp_mayor') delete TF.datos[mes].valores[k];
+        });
+        TF.datos[mes].valores['_imp_manual']=true;
+      });
+      var impuestosCargados={};
+      for(var r=1;r<rows.length;r++){
+        var row=rows[r];
+        var mes=_normMes(String(row[iMes]||'').trim());
+        var tipo=String(row[iTipo]||'').trim();
+        var monto=parseFloat(String(row[iMonto]||'0').replace(',','.'))||0;
+        if(!mes||!tipo||monto<=0) continue;
+        // Crear clave normalizada: imp_islr, imp_iva, imp_patente, etc.
+        var key='imp_'+tipo.toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+        if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
+        TF.datos[mes].valores[key]=(TF.datos[mes].valores[key]||0)+monto;
+        // Guardar etiqueta legible
+        if(!TF.impLabels) TF.impLabels={};
+        TF.impLabels[key]=tipo;
+        if(!impuestosCargados[mes]) impuestosCargados[mes]={};
+        impuestosCargados[mes][tipo]=(impuestosCargados[mes][tipo]||0)+monto;
+      }
+      // Guardar etiquetas en localStorage
+      try{localStorage.setItem('slf_tf_imp_labels',JSON.stringify(TF.impLabels||{}));}catch(e){}
+      try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
+      var mesesCarg=Object.keys(impuestosCargados).join(', ');
+      if(status) status.innerHTML='✅ Impuestos cargados: '+mesesCarg;
+      _tfActualizarEstadoCarga('imp','✅ Impuestos: '+mesesCarg);
+      showToast('Impuestos cargados: '+mesesCarg);
+      _tfRenderKPIs(); _tfRenderTabla();
+    }catch(ex){
+      if(status) status.innerHTML='❌ Error Impuestos: '+ex.message;
+      console.error('tfCargarImpuestos:',ex);
+    }
+    evt.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// CARGA EXCEL — COSTOS TRIBUTARIOS (Punto 8)
+// Formato: Mes | Concepto | Monto USD
+// FONA, FONACIT, LOCTI, Deporte, SUDEASEG, Patente, IVA/ISLR retenido, etc.
+// ══════════════════════════════════════════════════════════════════════
+function tfCargarTributarios(evt){
+  var file=evt.target.files[0]; if(!file) return;
+  var status=document.getElementById('tf-load-status');
+  if(status) status.innerHTML='⏳ Procesando Costos Tributarios...';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(e.target.result,{type:'array'});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      var H=rows[0]||[];
+      var iMes=_col(H,['mes','month','periodo','período']);
+      var iTipo=_col(H,['concepto','tipo','descripcion','descripción','retencion','retención','tributo']);
+      var iMonto=_col(H,['monto','amount','usd','monto usd','valor']);
+      if(iMes<0||iTipo<0||iMonto<0){
+        if(status) status.innerHTML='❌ Columnas requeridas: Mes | Concepto | Monto USD. Ver formato.';
+        evt.target.value=''; return;
+      }
+      var mesesTocados={};
+      for(var r=1;r<rows.length;r++){
+        var mes=_normMes(String(rows[r][iMes]||'').trim());
+        if(mes) mesesTocados[mes]=true;
+      }
+      Object.keys(mesesTocados).forEach(function(mes){
+        if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
+        Object.keys(TF.datos[mes].valores).forEach(function(k){
+          if(k.indexOf('trib_')===0) delete TF.datos[mes].valores[k];
+        });
+        TF.datos[mes].valores['_ret_manual']=true;
+      });
+      var tribCargados={};
+      if(!TF.tribLabels) TF.tribLabels={};
+      for(var r=1;r<rows.length;r++){
+        var row=rows[r];
+        var mes=_normMes(String(row[iMes]||'').trim());
+        var tipo=String(row[iTipo]||'').trim();
+        var monto=parseFloat(String(row[iMonto]||'0').replace(',','.'))||0;
+        if(!mes||!tipo||monto<=0) continue;
+        var key='trib_'+tipo.toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+        TF.datos[mes].valores[key]=(TF.datos[mes].valores[key]||0)+monto;
+        TF.tribLabels[key]=tipo;
+        if(!tribCargados[mes]) tribCargados[mes]={};
+        tribCargados[mes][tipo]=(tribCargados[mes][tipo]||0)+monto;
+      }
+      try{localStorage.setItem('slf_tf_trib_labels',JSON.stringify(TF.tribLabels||{}));}catch(e){}
+      try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
+      var mesesCarg=Object.keys(tribCargados).join(', ');
+      if(status) status.innerHTML='✅ Costos Tributarios cargados: '+mesesCarg;
+      _tfActualizarEstadoCarga('trib','✅ Tributarios: '+mesesCarg);
+      showToast('Costos Tributarios cargados: '+mesesCarg);
+      _tfRenderKPIs(); _tfRenderTabla();
+    }catch(ex){
+      if(status) status.innerHTML='❌ Error Tributarios: '+ex.message;
+      console.error('tfCargarTributarios:',ex);
+    }
+    evt.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+function _col(headers, aliases){
+  // Busca columna por nombre (case-insensitive, cualquier alias)
+  for(var i=0;i<headers.length;i++){
+    var h=String(headers[i]||'').toLowerCase().trim();
+    for(var j=0;j<aliases.length;j++){
+      if(h===aliases[j]||h.indexOf(aliases[j])>=0) return i;
+    }
+  }
+  return -1;
+}
+function _normMes(s){
+  var MMAP={
+    'enero':'Enero','january':'Enero','ene':'Enero',
+    'febrero':'Febrero','february':'Febrero','feb':'Febrero',
+    'marzo':'Marzo','march':'Marzo','mar':'Marzo',
+    'abril':'Abril','april':'Abril','abr':'Abril',
+    'mayo':'Mayo','may':'Mayo',
+    'junio':'Junio','june':'Junio','jun':'Junio',
+    'julio':'Julio','july':'Julio','jul':'Julio',
+    'agosto':'Agosto','august':'Agosto','ago':'Agosto',
+    'septiembre':'Septiembre','september':'Septiembre','sep':'Septiembre','sept':'Septiembre',
+    'octubre':'Octubre','october':'Octubre','oct':'Octubre',
+    'noviembre':'Noviembre','november':'Noviembre','nov':'Noviembre',
+    'diciembre':'Diciembre','december':'Diciembre','dic':'Diciembre'
+  };
+  return MMAP[s.toLowerCase()]||null;
 }
 
 
