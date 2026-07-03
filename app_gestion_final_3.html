@@ -4181,11 +4181,26 @@ var TF = {
              'prov_usd','nom_usd','fluct_cam','impuestos_excel'] },
     { id:'pct_adm',   lbl:'% Gasto Administración', tipo:'porcentaje', num:'total_adm', den:'total_ingr' },
 
-    // ── Gasto de Presidencia — ítem propio, fuera de Gasto Admin ────
-    { id:'sec_pres',  lbl:'Gasto de Presidencia', tipo:'subseccion' },
-    { id:'gto_pres',  lbl:'Gasto de Presidencia',  tipo:'item', signo:-1, fuente:'mayor',
-      nota:'3 381 01 10 02 (Asociaciones/Pres.) + 3 381 01 16 08 — separado del Gasto Admin' },
-    { id:'total_pres',lbl:'Total Gasto de Presidencia', tipo:'subtotal', hijos:['gto_pres'] },
+    // ── Gasto de Presidencia — sección propia, fuera de Gasto Admin ─
+    // Fuente Ene-May: Excel oficial (TF_FC_HIST) · Fuente Jun+: Mayor analítico
+    { id:'sec_pres',   lbl:'Gasto de Presidencia', tipo:'subseccion' },
+    { id:'gtp_cond',   lbl:'Condominios',              tipo:'item', signo:-1, fuente:'fc',
+      nota:'F83 del Flujo de Caja' },
+    { id:'gtp_bas',    lbl:'Servicios Básicos',         tipo:'item', signo:-1, fuente:'fc',
+      nota:'F84 del Flujo de Caja' },
+    { id:'gtp_tarj',   lbl:'Pagos Tarjetas de Crédito', tipo:'item', signo:-1, fuente:'fc',
+      nota:'F85 del Flujo de Caja' },
+    { id:'gtp_div',    lbl:'Gastos Diversos Presidencia',tipo:'item', signo:-1, fuente:'fc',
+      nota:'F86 del Flujo de Caja' },
+    { id:'gtp_val',    lbl:'Gastos Grupo Valles',        tipo:'item', signo:-1, fuente:'fc',
+      nota:'F87 del Flujo de Caja' },
+    { id:'gtp_lin',    lbl:'Líneas de Crédito',          tipo:'item', signo:-1, fuente:'fc',
+      nota:'F88 del Flujo de Caja' },
+    { id:'gtp_zel',    lbl:'Zelle',                      tipo:'item', signo:-1, fuente:'fc',
+      nota:'F89 del Flujo de Caja' },
+    { id:'gto_pres',   lbl:'Total Presidencia',           tipo:'subtotal',
+      hijos:['gtp_cond','gtp_bas','gtp_tarj','gtp_div','gtp_val','gtp_lin','gtp_zel'] },
+    { id:'pct_pres',   lbl:'% Presidencia', tipo:'porcentaje', num:'total_pres', den:'total_ingr' },
 
     // ── Costos Tributarios ────────────────────────────────────────────
     { id:'sec_trib', lbl:'Costos Tributarios', tipo:'subseccion' },
@@ -4224,7 +4239,8 @@ function tfInit(){
   }catch(e){}
   _tfLeerPrimasApp();
   _tfAplicarDescs(); // aplicar descripciones editadas previamente
-  Object.keys(TF_HIST).forEach(function(mes){ _tfPrecargarHistoricos(mes); });
+  // Pre-cargar usando TF_FC_HIST (que es el Flujo de Caja oficial Ene-May)
+  Object.keys(TF_FC_HIST).forEach(function(mes){ _tfPrecargarHistoricos(mes); });
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -4340,7 +4356,12 @@ function _tfVal(id,mes){
   return TF.datos[mes].valores[id]||0;
 }
 function _tfMeses(){
-  return TF.MESES.filter(function(m){return TF.datos[m]&&Object.keys(TF.datos[m].valores||{}).length;});
+  // Incluir meses que tienen datos del mayor analítico O del FC histórico
+  return TF.MESES.filter(function(m){
+    var tieneFC   = !!TF_FC_HIST[m];
+    var tieneDatos= TF.datos[m]&&Object.keys(TF.datos[m].valores||{}).length>0;
+    return tieneDatos || tieneFC;
+  });
 }
 function _tfGet(id){
   if(TF.mesActivo==='acum') return _tfMeses().reduce(function(s,m){return s+_tfVal(id,m);},0);
@@ -4356,29 +4377,48 @@ function _tfCalcSubtotal(hijos, mes){
   return (hijos||[]).reduce(function(s,hid){ return s+Math.abs(_tfVal(hid,mes)); }, 0);
 }
 function _tfCalcTotalIngr(mes){
-  // Total Ingresos = Prima Cobrada (totals.a / tasa_bcv)
-  // Fuente única: balance contable → _tfLeerPrimasApp()
-  return _tfVal('prima_ind',mes)||0;
+  // Total Ingresos = Prima Cobrada
+  // Sin mayor analítico: usa TF_FC_HIST.total_ingr (exacto del Excel oficial)
+  // Con mayor analítico: usa totals.a/tasa (prima_ind calculada)
+  var V=(TF.datos[mes]||{}).valores||{};
+  if(!V['_tiene_mayor']){
+    var h=TF_FC_HIST[mes];
+    if(h&&h.total_ingr>0) return h.total_ingr;
+  }
+  return V['prima_ind']||0;
 }
+
 function _tfCalcTotalEgr(mes){
-  // Siniestros (La Fe + Polar + Anticipados + Nueve Once separado)
+  var V=(TF.datos[mes]||{}).valores||{};
+  // Sin mayor analítico: usar total_egr exacto del Flujo de Caja (garantiza cuadre perfecto)
+  if(!V['_tiene_mayor']){
+    var h=TF_FC_HIST[mes];
+    if(h && h.total_egr>0) return h.total_egr;
+  }
+  // Con mayor analítico: calcular desde los ítems procesados
   var egr = _tfCalcSubtotal(['sin_tot','sin_nueve_once'],mes);
-  // Comisiones
   egr += _tfCalcSubtotal(['comis_prod'],mes);
-  // Gasto de Administración (sub-cuentas Bs. + nómina + parafiscales + divisas + impuestos)
   egr += _tfCalcSubtotal(['gadm_honorarios','gadm_proc_datos','gadm_serv_bas','gadm_publicidad',
                            'gadm_inmuebles','gadm_relaciones','gadm_mantenimiento',
                            'gadm_representacion','gadm_otros'],mes);
   egr += _tfCalcSubtotal(['nom_bs_tot','nom_ivss','nom_faov','nom_inces'],mes);
   egr += _tfCalcSubtotal(['prov_usd','nom_usd','fluct_cam'],mes);
-  egr += _tfCalcDynGrupo('imp',mes);    // impuestos dinámicos del Excel (tfCargarImpuestos)
-  // Gasto de Presidencia (ítem propio — fuera de Gasto Admin)
-  egr += _tfCalcSubtotal(['gto_pres'],mes);
-  // Costos Tributarios (retenciones dinámicas del Excel)
+  egr += _tfCalcDynGrupo('imp',mes);
+  egr += _tfCalcSubtotal(['gtp_cond','gtp_bas','gtp_tarj','gtp_div','gtp_val','gtp_lin','gtp_zel'],mes);
   egr += _tfCalcDynGrupo('trib',mes);
-  // Costo Bancario
   egr += _tfCalcSubtotal(['com_banc'],mes);
   return egr;
+}
+
+// Calcula el total incluyendo Presidencia (para mostrar en el flujo completo)
+function _tfCalcTotalEgrConPres(mes){
+  var V=(TF.datos[mes]||{}).valores||{};
+  if(!V['_tiene_mayor']){
+    var h=TF_FC_HIST[mes];
+    if(h && h.total_egr_pres>0) return h.total_egr_pres;
+  }
+  return _tfCalcTotalEgr(mes) + _tfCalcSubtotal(
+    ['gtp_cond','gtp_bas','gtp_tarj','gtp_div','gtp_val','gtp_lin','gtp_zel'],mes);
 }
 // Suma todos los ítems dinámicos de un grupo (imp_* o trib_*)
 function _tfCalcDynGrupo(grupo,mes){
@@ -4420,44 +4460,286 @@ var TF_HIST = {
     imp:21797.02, ret:12686.01, prov:8739.24, nger:15380, dif:2957.19, ppol:58619.98,
     imp_det:{ imp_islr:31546.44, imp_iva:1631.84, imp_otros:-11381.26 }
   }
+
 };
 
-// Pre-carga históricos del Excel (Ene-May 2026) para campos manuales
-// Regla: solo si el usuario NO ha marcado _xxx_manual → usa histórico
-// Impuestos NO se pre-cargan aquí: vienen de tfCargarImpuestos() (Excel dinámico)
-// o el usuario los ingresa manualmente en la tabla. El histórico imp sigue en TF_HIST
-// para referencia pero NO se aplica automáticamente (evitar confusión con el Excel dinámico).
+// ══════════════════════════════════════════════════════════════════════
+// TF_FC_HIST — Pre-carga exacta del Flujo de Caja La Fe Ene-May 2026
+// Fuente: FLUJO_DE_CAJA_LA_FE_al_31-05-2026.xlsx
+// Todos los valores son EXACTOS del Excel (máxima precisión)
+// Esta constante reemplaza el cálculo del mayor analítico para Ene-May
+// ══════════════════════════════════════════════════════════════════════
+var TF_FC_HIST = {
+  'Enero': {
+    prima_ind:        207108.0076827840,  // Primas Cartera Individual
+    prima_pol:        51418.6000000000,  // Prima Grupo Polar
+    total_ingr:       258526.6076827840,  // Total Ingresos
+    sin_lafe:         85521.4966709445,  // Siniestros Pagados La Fe
+    sin_polar:        39379.6196044305,  // Siniestros Pagados Polar
+    sin_antici:       0.0000000000,  // Siniestros Anticipados
+    sin_nueve_once:   7480.8688010590,  // Gastos Grupo Nueve Once
+    total_sin:        132381.9850764339,  // Total Siniestros
+    com_coord:        0.0000000000,  // Coordinacion Funeasistencia
+    com_cc:           1238.8408123314,  // Comisiones Call Center
+    com_promo:        6270.1370245071,  // Gastos Promo y Venta
+    total_com:        7508.9778368385,  // Total Comisiones
+    gadm_bs:          59320.2885715609,  // Gastos Admin Bs. (del mayor)
+    prov_usd:         9173.6004696370,  // Anticipo Proveedores
+    prov_otras:       9173.4472647902,  // Otros ítems div. (F34-F53)
+    nom_usd:          16630.0000000000,  // Nomina Gerentes
+    fluct_cam:        13796.3901566043,  // Diferencial Nomina Gerentes
+    imp_iva:          13437.2230122879,  // Impuestos (IVA,ISLR,SUDEASEG...)
+    imp_islr:         14193.6635672202,  // ISLR Anual
+    total_adm:        134060.1436141488,  // Total Gasto Admin
+    ret_iva_islr:     15211.0748108216,  // Retenciones IVA/ISLR/IAE
+    total_trib:       15211.0748108216,  // Total Tributarios
+    banc_dom:         4257.8137550633,  // Comision Domiciliacion
+    banc_mant:        1537.1933672368,  // Comision Mant. Cuenta
+    com_banc:         5795.0071223002,  // Total Bancario
+    total_egr:        287448.2106237045,  // Total Egresos
+    saldo_fc:         -28921.6029409205,  // Saldo en Caja
+    // ── Presidencia — Ene-May 2026 (exacto del Excel, F82-F90) ────────
+    gtp_cond:         3957.3442537827,    // Condominios
+    gtp_bas:          530.1213193014,     // Servicios Básicos
+    gtp_tarj:         0.0,               // Pagos Tarjetas Crédito
+    gtp_div:          4664.2975056588,    // Gastos Diversos Presidencia
+    gtp_val:          0.0,               // Gastos Grupo Valles
+    gtp_lin:          2010.5179288233,    // Líneas de Crédito
+    gtp_zel:          104.0800000000,     // Zelle
+    gto_pres:         11266.3610075663,   // Total Presidencia (F90 = F93-F76)
+    total_egr_pres:   298714.5716312708,  // Total Egresos + Presidencia (F93)
+    saldo_pres:       -40187.9639484868,  // Saldo incl. Presidencia (F95)
+  },
+  'Febrero': {
+    prima_ind:        199068.5657625856,  // Primas Cartera Individual
+    prima_pol:        51418.6000000000,  // Prima Grupo Polar
+    total_ingr:       250487.1657625856,  // Total Ingresos
+    sin_lafe:         31801.4865574588,  // Siniestros Pagados La Fe
+    sin_polar:        24723.7109111388,  // Siniestros Pagados Polar
+    sin_antici:       0.0000000000,  // Siniestros Anticipados
+    sin_nueve_once:   4616.2273979148,  // Gastos Grupo Nueve Once
+    total_sin:        61141.4248665124,  // Total Siniestros
+    com_coord:        1731.8574231052,  // Coordinacion Funeasistencia
+    com_cc:           1100.4049870455,  // Comisiones Call Center
+    com_promo:        13206.2483873208,  // Gastos Promo y Venta
+    total_com:        16038.5107974715,  // Total Comisiones
+    gadm_bs:          43034.3298164279,  // Gastos Admin Bs. (del mayor)
+    prov_usd:         9173.6004696370,  // Anticipo Proveedores
+    prov_otras:       7149.0181487143,  // Otros ítems div. (F34-F53)
+    nom_usd:          12440.0000000000,  // Nomina Gerentes
+    fluct_cam:        5613.5766646576,  // Diferencial Nomina Gerentes
+    imp_iva:          19004.2491955523,  // Impuestos (IVA,ISLR,SUDEASEG...)
+    imp_islr:         0.0000000000,  // ISLR Anual
+    total_adm:        105681.5925010463,  // Total Gasto Admin
+    ret_iva_islr:     14922.9425424382,  // Retenciones IVA/ISLR/IAE
+    total_trib:       14922.9425424382,  // Total Tributarios
+    banc_dom:         4160.4234714149,  // Comision Domiciliacion
+    banc_mant:        1415.6742388741,  // Comision Mant. Cuenta
+    com_banc:         5576.0977102891,  // Total Bancario
+    total_egr:        187322.0576202859,  // Total Egresos
+    saldo_fc:         63165.1081422997,  // Saldo en Caja
+    gtp_cond:         3016.2600496736,    // Condominios
+    gtp_bas:          414.1524298501,     // Servicios Básicos
+    gtp_tarj:         0.0,               // Pagos Tarjetas Crédito
+    gtp_div:          5954.7517488932,    // Gastos Diversos Presidencia
+    gtp_val:          636.5140980093,     // Gastos Grupo Valles
+    gtp_lin:          0.0000000000,       // Líneas de Crédito
+    gtp_zel:          110.0000000000,     // Zelle
+    gto_pres:         10131.6783264262,   // Total Presidencia (F90)
+    total_egr_pres:   197453.7359467121,  // Total Egresos + Presidencia (F93)
+    saldo_pres:       53033.4298158735,   // Saldo incl. Presidencia (F95)
+  },
+  'Marzo': {
+    prima_ind:        230436.4392383842,  // Primas Cartera Individual
+    prima_pol:        51418.6000000000,  // Prima Grupo Polar
+    total_ingr:       281855.0392383842,  // Total Ingresos
+    sin_lafe:         41329.5178838815,  // Siniestros Pagados La Fe
+    sin_polar:        23538.6161171535,  // Siniestros Pagados Polar
+    sin_antici:       105.0815976932,  // Siniestros Anticipados
+    sin_nueve_once:   3150.8577748309,  // Gastos Grupo Nueve Once
+    total_sin:        68124.0733735591,  // Total Siniestros
+    com_coord:        0.0000000000,  // Coordinacion Funeasistencia
+    com_cc:           691.7200160147,  // Comisiones Call Center
+    com_promo:        20399.1592734285,  // Gastos Promo y Venta
+    total_com:        21090.8792894432,  // Total Comisiones
+    gadm_bs:          53640.8900691371,  // Gastos Admin Bs. (del mayor)
+    prov_usd:         9173.6004696370,  // Anticipo Proveedores
+    prov_otras:       17619.8214876725,  // Otros ítems div. (F34-F53)
+    nom_usd:          19640.0000000000,  // Nomina Gerentes
+    fluct_cam:        7840.9433743315,  // Diferencial Nomina Gerentes
+    imp_iva:          11517.3727994257,  // Impuestos (IVA,ISLR,SUDEASEG...)
+    imp_islr:         0.0000000000,  // ISLR Anual
+    total_adm:        124442.8427082761,  // Total Gasto Admin
+    ret_iva_islr:     7942.4583224349,  // Retenciones IVA/ISLR/IAE
+    total_trib:       7942.4583224349,  // Total Tributarios
+    banc_dom:         5118.0772220106,  // Comision Domiciliacion
+    banc_mant:        1286.6027621240,  // Comision Mant. Cuenta
+    com_banc:         6404.6799841346,  // Total Bancario
+    total_egr:        206914.0543884046,  // Total Egresos
+    saldo_fc:         74940.9848499796,  // Saldo en Caja
+    gtp_cond:         7113.6114213263,    // Condominios
+    gtp_bas:          551.4469602868,     // Servicios Básicos
+    gtp_tarj:         0.0,               // Pagos Tarjetas Crédito
+    gtp_div:          6471.1642778333,    // Gastos Diversos Presidencia
+    gtp_val:          0.0000000000,       // Gastos Grupo Valles
+    gtp_lin:          608.6825005159,     // Líneas de Crédito
+    gtp_zel:          86.6800000000,      // Zelle
+    gto_pres:         14831.5851599622,   // Total Presidencia (F90)
+    total_egr_pres:   221745.6395483668,  // Total Egresos + Presidencia (F93)
+    saldo_pres:       60109.3996900173,   // Saldo incl. Presidencia (F95)
+  },
+  'Abril': {
+    prima_ind:        202548.1743578267,  // Primas Cartera Individual
+    prima_pol:        58273.6700000000,  // Prima Grupo Polar
+    total_ingr:       260821.8443578267,  // Total Ingresos
+    sin_lafe:         51824.6826969354,  // Siniestros Pagados La Fe
+    sin_polar:        32305.6614725596,  // Siniestros Pagados Polar
+    sin_antici:       865.0557850852,  // Siniestros Anticipados
+    sin_nueve_once:   19859.5408642678,  // Gastos Grupo Nueve Once
+    total_sin:        104854.9408188480,  // Total Siniestros
+    com_coord:        1465.3322832611,  // Coordinacion Funeasistencia
+    com_cc:           1036.7829454942,  // Comisiones Call Center
+    com_promo:        24242.5112768169,  // Gastos Promo y Venta
+    total_com:        26744.6265055723,  // Total Comisiones
+    gadm_bs:          55913.7753220534,  // Gastos Admin Bs. (del mayor)
+    prov_usd:         16958.3969731252,  // Anticipo Proveedores
+    prov_otras:       19223.6775653326,  // Otros ítems div. (F34-F53)
+    nom_usd:          16120.0000000000,  // Nomina Gerentes
+    fluct_cam:        5206.8828898653,  // Diferencial Nomina Gerentes
+    imp_iva:          15115.3615144375,  // Impuestos (IVA,ISLR,SUDEASEG...)
+    imp_islr:         0.0000000000,  // ISLR Anual
+    total_adm:        138324.3237972611,  // Total Gasto Admin
+    ret_iva_islr:     10985.7314773724,  // Retenciones IVA/ISLR/IAE
+    total_trib:       10985.7314773724,  // Total Tributarios
+    banc_dom:         4137.7455533401,  // Comision Domiciliacion
+    banc_mant:        1492.6716003392,  // Comision Mant. Cuenta
+    com_banc:         5630.4171536793,  // Total Bancario
+    total_egr:        259795.4132471607,  // Total Egresos
+    saldo_fc:         1026.4311106660,  // Saldo en Caja
+    gtp_cond:         3020.1213208408,    // Condominios
+    gtp_bas:          573.1027966506,     // Servicios Básicos
+    gtp_tarj:         0.0,               // Pagos Tarjetas Crédito
+    gtp_div:          8090.7770325877,    // Gastos Diversos Presidencia
+    gtp_val:          389.8461769247,     // Gastos Grupo Valles
+    gtp_lin:          0.0000000000,       // Líneas de Crédito
+    gtp_zel:          121.1000000000,     // Zelle
+    gto_pres:         12194.9473270037,   // Total Presidencia (F90)
+    total_egr_pres:   271990.3605741645,  // Total Egresos + Presidencia (F93)
+    saldo_pres:       -11168.5162163378,  // Saldo incl. Presidencia (F95)
+  },
+  'Mayo': {
+    prima_ind:        211662.8989387868,  // Primas Cartera Individual
+    prima_pol:        58619.9792832980,  // Prima Grupo Polar
+    total_ingr:       270282.8782220847,  // Total Ingresos
+    sin_lafe:         48134.4577277357,  // Siniestros Pagados La Fe
+    sin_polar:        27528.5783427868,  // Siniestros Pagados Polar
+    sin_antici:       0.0000000000,  // Siniestros Anticipados
+    sin_nueve_once:   2794.7855873030,  // Gastos Grupo Nueve Once
+    total_sin:        78457.8216578255,  // Total Siniestros
+    com_coord:        0.0000000000,  // Coordinacion Funeasistencia
+    com_cc:           989.7274172710,  // Comisiones Call Center
+    com_promo:        17701.2924329973,  // Gastos Promo y Venta
+    total_com:        18691.0198502683,  // Total Comisiones
+    gadm_bs:          44235.3283341123,  // Gastos Admin Bs. (del mayor)
+    prov_usd:         8739.2424243485,  // Anticipo Proveedores
+    prov_otras:       8739.2424243484,  // Otros ítems div. (F34-F53)
+    nom_usd:          15380.0000000000,  // Nomina Gerentes
+    fluct_cam:        2957.1862315015,  // Diferencial Nomina Gerentes
+    imp_iva:          21674.8899382173,  // Impuestos (IVA,ISLR,SUDEASEG...)
+    imp_islr:         123.1342268386,  // ISLR Anual
+    total_adm:        111800.8010052866,  // Total Gasto Admin
+    ret_iva_islr:     12686.0056751500,  // Retenciones IVA/ISLR/IAE
+    total_trib:       12686.0056751500,  // Total Tributarios
+    banc_dom:         4535.1403581641,  // Comision Domiciliacion
+    banc_mant:        1707.4799578727,  // Comision Mant. Cuenta
+    com_banc:         6242.6203160368,  // Total Bancario
+    total_egr:        209187.2486542988,  // Total Egresos
+    saldo_fc:         61095.6295677859,  // Saldo en Caja
+    gtp_cond:         3789.1519482879,    // Condominios
+    gtp_bas:          486.9883782399,     // Servicios Básicos
+    gtp_tarj:         0.0,               // Pagos Tarjetas Crédito
+    gtp_div:          9698.0029166658,    // Gastos Diversos Presidencia
+    gtp_val:          58.3835354317,      // Gastos Grupo Valles
+    gtp_lin:          0.0000000000,       // Líneas de Crédito
+    gtp_zel:          15.9400000000,      // Zelle
+    gto_pres:         14048.4667786253,   // Total Presidencia (F90)
+    total_egr_pres:   223235.7154329240,  // Total Egresos + Presidencia (F93)
+    saldo_pres:       47047.1627891607,   // Saldo incl. Presidencia (F95)
+  },
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Pre-carga EXACTA del Flujo de Caja Real Ene-May 2026 (TF_FC_HIST)
+// ══════════════════════════════════════════════════════════════════════
+// ESTRATEGIA APROBADA:
+// Los valores de Ene-May 2026 se toman DIRECTAMENTE del Flujo de Caja
+// oficial (FLUJO_DE_CAJA_LA_FE_al_31-05-2026.xlsx). Los números cuadran
+// exactamente con el Excel presentado a los accionistas.
+// A partir de Junio, el usuario carga el mayor analítico mensualmente.
+//
+// Regla de precedencia:
+//   1. Si el usuario cargó mayor analítico (_tiene_mayor=true) → el mayor
+//      reemplaza los valores del FC para las partidas que calcula
+//   2. Si NO hay mayor → usar TF_FC_HIST completo (cuadre exacto)
+//   3. En ambos casos: ret, prov, nom_usd, fluct_cam siempre del FC
+// ══════════════════════════════════════════════════════════════════════
 function _tfPrecargarHistoricos(mes){
   if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
   var V=TF.datos[mes].valores;
-  var h=TF_HIST[mes];
-  if(!h) return; // mes futuro sin histórico
-  // Retenciones: del Excel (cuentas de pasivo — no están en el mayor de egresos)
-  if(!V['_ret_manual'])  V['ret_iva_islr']=h.ret;
-  // Proveedores USD: del Excel si no hay carga del modal Divisas o Excel Nómina
-  if(!V['_prov_manual']) V['prov_usd']    =h.prov;
-  // Nómina Gerentes: del Excel si no hay carga del modal Divisas o Excel Nómina
-  if(!V['_nger_manual']) V['nom_usd']     =h.nger;
-  // Diferencial Cambiario: del Excel si no hay carga manual
-  if(!V['_dif_manual'])  V['fluct_cam']   =h.dif;
-  // prima_polar ya no se usa en la ESTRUCTURA — ignorar h.ppol
-  // Impuestos: pre-cargar los items dinámicos imp_* SOLO si no hay Excel cargado
-  // y no hay imp_manual marcado
-  if(!V['_imp_manual'] && h.imp_det){
-    // imp_det contiene el desglose por tipo: {imp_islr:X, imp_iva:Y, ...}
-    Object.keys(h.imp_det).forEach(function(k){
-      if(!V[k]) V[k]=h.imp_det[k];
-    });
-    // Guardar etiquetas si no existen
+  var h=TF_FC_HIST[mes];
+  if(!h) return; // mes sin histórico (Junio+) → dejar en 0
+
+  var tieneMayor = V['_tiene_mayor']===true;
+
+  // ── SIEMPRE del Flujo de Caja (no calculable desde el mayor analítico) ──
+  if(!V['_ret_manual'])  V['ret_iva_islr'] = h.ret_iva_islr;   // Retenciones
+  if(!V['_prov_manual']) V['prov_usd']     = h.prov_usd;       // Anticipo Proveedores
+  if(!V['_nger_manual']) V['nom_usd']      = h.nom_usd;        // Nómina Gerentes
+  if(!V['_dif_manual'])  V['fluct_cam']    = h.fluct_cam;      // Diferencial Cambiario
+
+  // ── Impuestos: dos ítems dinámicos del Flujo de Caja ─────────────
+  if(!V['_imp_manual']){
     if(!TF.impLabels) TF.impLabels={};
-    var IMP_LABELS={
-      'imp_islr':'ISLR','imp_iva':'IVA','imp_patente':'Patente Industria y Comercio',
-      'imp_sudeaseg':'SUDEASEG','imp_igtf':'IGTF','imp_otros':'Otros Impuestos'
-    };
-    Object.keys(IMP_LABELS).forEach(function(k){
-      if(!TF.impLabels[k]) TF.impLabels[k]=IMP_LABELS[k];
-    });
+    if(h.imp_iva>0){
+      V['imp_iva']  = h.imp_iva;
+      TF.impLabels['imp_iva']='Impuestos (IVA, ISLR, SUDEASEG, Patente, IGTF)';
+    }
+    if(h.imp_islr>0){
+      V['imp_islr'] = h.imp_islr;
+      TF.impLabels['imp_islr']='ISLR Anual';
+    }
     try{localStorage.setItem('slf_tf_imp_labels',JSON.stringify(TF.impLabels));}catch(e){}
+  }
+
+  // ── Presidencia: sub-ítems exactos del Flujo de Caja ─────────────
+  // gto_pres = Total Presidencia (F90) — coincide con F93-F76
+  if(!V['_pres_manual']){
+    if(h.gtp_cond  !== undefined) V['gtp_cond']  = h.gtp_cond;
+    if(h.gtp_bas   !== undefined) V['gtp_bas']   = h.gtp_bas;
+    if(h.gtp_tarj  !== undefined) V['gtp_tarj']  = h.gtp_tarj;
+    if(h.gtp_div   !== undefined) V['gtp_div']   = h.gtp_div;
+    if(h.gtp_val   !== undefined) V['gtp_val']   = h.gtp_val;
+    if(h.gtp_lin   !== undefined) V['gtp_lin']   = h.gtp_lin;
+    if(h.gtp_zel   !== undefined) V['gtp_zel']   = h.gtp_zel;
+    // gto_pres también se pre-carga para el subtotal (se recalcula en render)
+    if(h.gto_pres>0) V['gto_pres'] = h.gto_pres;
+  }
+
+  // ── Si NO hay mayor analítico: pre-cargar también los ítems del mayor ─
+  // Muestra los valores del Excel mientras el usuario no carga el mayor.
+  // Cuando el usuario carga el mayor, _tfCargarMayor los sobreescribe.
+  if(!tieneMayor){
+    // Siniestros totales (La Fe + Polar + Anticipados)
+    if(!V['sin_tot'])        V['sin_tot']        = h.sin_lafe + h.sin_polar + h.sin_antici;
+    // Plan Capitado Nueve Once
+    if(!V['sin_nueve_once']) V['sin_nueve_once']  = h.sin_nueve_once;
+    // Comisiones (total consolidado — sin desglose hasta que cargue el mayor)
+    if(!V['comis_prod'])     V['comis_prod']      = h.total_com;
+    // Gastos Admin Bs. (total sin desglose por sub-cuenta)
+    // Se guarda en gadm_otros temporalmente
+    if(!V['gadm_otros'] && h.gadm_bs>0) V['gadm_otros'] = h.gadm_bs;
+    // Comisiones Bancarias
+    if(!V['com_banc'])       V['com_banc']        = h.com_banc;
   }
 }
 
@@ -4660,7 +4942,7 @@ function _tfRenderTabla(){
                      'gadm_publicidad','gadm_inmuebles','gadm_relaciones','gadm_mantenimiento',
                      'gadm_representacion','gadm_otros','nom_bs_tot','nom_ivss','nom_faov','nom_inces',
                      'prov_usd','nom_usd','fluct_cam']
-                  :nodo.num==='total_pres'?['gto_pres']
+                  :nodo.num==='total_pres'?['gtp_cond','gtp_bas','gtp_tarj','gtp_div','gtp_val','gtp_lin','gtp_zel']
                   :nodo.num==='total_trib'?['ret_iva_islr']
                   :nodo.num==='total_banc'?['com_banc']:[]
                ,m);
@@ -5080,8 +5362,8 @@ function tfCargarMayor(evt){
           // Nómina Personal (Bs.) + Parafiscales
           'nom_bs_tot','nom_sueldos','nom_cesta','nom_bonos','nom_otros',
           'nom_ivss','nom_faov','nom_inces',
-          // Gasto de Presidencia (ítem propio fuera de Gasto Admin)
-          'gto_pres',
+          // Gasto de Presidencia — sub-ítems (cargados del FC histórico)
+          'gto_pres','gtp_cond','gtp_bas','gtp_tarj','gtp_div','gtp_val','gtp_lin','gtp_zel',
           // Gastos Admin por sub-concepto contable (excl. Presidencia)
           'gadm_honorarios','gadm_proc_datos','gadm_serv_bas',
           'gadm_publicidad','gadm_inmuebles','gadm_relaciones',
@@ -5196,6 +5478,10 @@ function tfCargarMayor(evt){
           if(mc('3 301 09 01')||mc('3 321 03 01')){add('gadm_otros','Gto.Adm.Ramo');  return;}
         });
       });
+
+      // Marcar que este mes tiene datos del mayor analítico cargados
+      // Esto hace que _tfPrecargarHistoricos respete el mayor sobre el FC histórico
+      Object.keys(porMes).forEach(function(m){ TF.datos[m].valores['_tiene_mayor']=true; });
 
       _tfLeerPrimasApp();
       try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
