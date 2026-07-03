@@ -4253,14 +4253,17 @@ function _tfRenderKPIs(){
     te=meses.reduce(function(s,mx){return s+_tfCalcTotalEgr(mx);},0);
   }
   var sl=ti-te; var ef=ti>0?te/ti*100:0;
-  var pPol=_tfGet('polar_apc')+_tfGet('polar_cp')+_tfGet('polar_soc')+_tfGet('polar_pcv');
-  var sPol=_tfGet('sin_tot');
-  var pInd=_tfGet('prima_ind');
-  var sInd=_tfGet('sin_tot');
-  var srPol=pPol>0?sPol/pPol*100:0; var srInd=pInd>0?sInd/pInd*100:0;
-  // Tasa de referencia: para ACUM mostrar la del último mes, para mes específico la del mes
-  var tasaRef = 0;
-  if(m==='acum' && meses.length){
+
+  // Siniestros y prima para siniestralidad
+  var sinTot = _tfGet('sin_tot');
+  var prima  = _tfGet('prima_ind');
+  var comis  = _tfGet('comis_prod');
+  var srTot  = prima>0 ? sinTot/prima*100 : 0;
+  var costoSP= prima>0 ? (sinTot+comis)/prima*100 : 0;
+
+  // Tasa BCV de referencia del mes o del último mes en acumulado
+  var tasaRef=0;
+  if(m==='acum'&&meses.length){
     var ult=meses[meses.length-1];
     tasaRef=(STATE.bcvRates&&STATE.bcvRates[ult]&&STATE.bcvRates[ult].avg)||TF.TASAS[ult]||0;
   } else {
@@ -4270,25 +4273,25 @@ function _tfRenderKPIs(){
   function card(lbl,valStr,sub,col,ico){
     return '<div class="tf-kpi" style="border-left:4px solid '+col+'">'
       +'<div class="tf-kpi-lbl">'+ico+' '+lbl+'</div>'
-      +'<div class="tf-kpi-val" style="color:'+col+';font-size:16px">'+valStr+'</div>'
+      +'<div class="tf-kpi-val" style="color:'+col+';font-size:15px;font-weight:900">'+valStr+'</div>'
       +'<div class="tf-kpi-sub">'+sub+'</div></div>';
   }
   function usdFmt(v){
-    // Formato exacto con 2 decimales para máxima precisión
-    var abs=Math.abs(v);
-    if(abs>=1000000) return 'USD '+(abs/1000000).toFixed(3)+'M';
-    if(abs>=1000)    return 'USD '+(abs/1000).toFixed(1)+'K';
-    return 'USD '+abs.toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2});
+    var neg=v<0; var abs=Math.abs(v);
+    var s = abs>=1000000 ? 'USD '+(abs/1000000).toFixed(2)+'M'
+          : abs>=1000    ? 'USD '+(abs/1000).toFixed(1)+'K'
+          : 'USD '+abs.toLocaleString('es-VE',{minimumFractionDigits:0,maximumFractionDigits:0});
+    return neg?'('+s+')':s;
   }
-  function pct(v){return v.toFixed(2)+'%';}
-  var tasaLbl = tasaRef>0 ? ' · Tasa Bs.'+tasaRef.toFixed(2) : '';
+  function pct(v){ return isNaN(v)||!isFinite(v)?'—':v.toFixed(1)+'%'; }
+  var tasaLbl = tasaRef>0?' · BCV Bs.'+tasaRef.toFixed(2):'';
   k.innerHTML=
-    card('Prima Cobrada Total',usdFmt(ti),(m==='acum'?meses.length+' meses'+tasaLbl:'Mes '+m+tasaLbl),'#4B2D8F','💰')+
-    card('Total Egresos',usdFmt(te),'Siniestros + Nómina + Gastos + Divisas','#8B1A1A','💸')+
-    card('Saldo Flujo de Caja',usdFmt(sl),sl>=0?'✅ Superávit operacional':'❌ Déficit operacional',sl>=0?'#0D7A4E':'#B0190F','🏦')+
-    card('Índice de Eficiencia',pct(ef),'Egresos / Ingresos × 100',ef<80?'#0D7A4E':ef<100?'#B07A00':'#B0190F','📊')+
-    card('Siniestralidad Total',pct(srTot||0),'Siniestros / Prima cobrada',srTot<60?'#0D7A4E':srTot<80?'#B07A00':'#B0190F','📊')+
-    card('Costo Total s/Prima',pct((sTot+(_tfGet('comis_prod')))/pInd*100||0),'(Sin+Comis) / Prima',((sTot+_tfGet('comis_prod'))/pInd*100)<80?'#0D7A4E':'#B0190F','💹');
+    card('Prima Cobrada',     usdFmt(ti),  (m==='acum'?meses.length+' meses'+tasaLbl:'Mes '+m+tasaLbl), '#4B2D8F','💰')+
+    card('Total Egresos',     usdFmt(te),  'Siniestros + Nómina + Gastos + Divisas',                     '#8B1A1A','💸')+
+    card('Saldo Flujo Caja',  usdFmt(sl),  sl>=0?'✅ Superávit':'❌ Déficit',                            sl>=0?'#0D7A4E':'#B0190F','🏦')+
+    card('Índice Eficiencia',  pct(ef),     'Egresos / Prima cobrada × 100',                              ef<80?'#0D7A4E':ef<100?'#B07A00':'#B0190F','📊')+
+    card('Siniestralidad',     pct(srTot),  'Siniestros / Prima cobrada',                                 srTot<60?'#0D7A4E':srTot<80?'#B07A00':'#B0190F','🏥')+
+    card('Costo (Sin+Comis)',  pct(costoSP),'(Siniestros + Comisiones) / Prima',                          costoSP<80?'#0D7A4E':costoSP<100?'#B07A00':'#B0190F','💹');
 }
 
 function _tfRenderTabla(){
@@ -4598,9 +4601,17 @@ function tfToggleCheck(id,v){
 
 function tfCargarMayor(evt){
   // ── Mayor Analítico de Egresos — Reglas R2–R8 validadas ──────────
+  // SOPORTA DOS MODALIDADES:
+  // (A) Mayor ACUMULADO (ej. Ene-Jun): el archivo cubre varios meses.
+  //     Cada mes se identifica por nro[4:6] y se procesa por separado.
+  // (B) Mayor MENSUAL (ej. solo Junio): el archivo cubre un solo mes.
+  //     Solo se resetea ese mes; los demás meses ya en localStorage
+  //     se preservan intactos.
+  // La lógica es la misma en ambos casos — el número de asiento (12 dígitos)
+  // siempre lleva el mes en posición [4:6]: 202606xxxxx = Junio 2026.
   var file=evt.target.files[0]; if(!file) return;
   var status=document.getElementById('tf-load-status');
-  if(status) status.innerHTML='⏳ Procesando Mayor Analítico <b>'+file.name+'</b>...';
+  if(status) status.innerHTML='⏳ Procesando <b>'+file.name+'</b>...';
   var reader=new FileReader();
   reader.onload=function(e){
     try{
@@ -4608,49 +4619,58 @@ function tfCargarMayor(evt){
       var ws=wb.Sheets[wb.SheetNames[0]];
       var raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
       var ctaAct='',nomAct='';
-      var porMes={};
+      var porMes={};  // agrupa asientos por mes antes de clasificar
       var MNUM={'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo',
                 '06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre',
                 '10':'Octubre','11':'Noviembre','12':'Diciembre'};
 
-      // Leer fila a fila: detectar cabecera de cuenta y registros de asiento
+      // ── Paso 1: Leer todas las filas y agrupar por mes ─────────────
       raw.forEach(function(row){
         if(!row||row.length<14) return;
-        // Cabecera de cuenta: col[1]='Cuenta Contable'
+        // Detectar encabezado de cuenta: col[1]='Cuenta Contable'
         if(String(row[1]).trim()==='Cuenta Contable'&&String(row[3]).trim()){
           var p=String(row[3]).split(',');
           nomAct=p[0].trim(); ctaAct=p[1]?p[1].trim():''; return;
         }
-        // Registro de asiento: col[2] = nro de 12 dígitos
+        // Detectar línea de asiento: col[2] = número de 12 dígitos
+        // Estructura: 2026 [MM] [SSSSSS] → posición [4:6] = mes
         var nro=String(row[2]||'').trim();
         if(nro.length!==12||!/^\d+$/.test(nro)) return;
+        var mesNum=nro.substring(4,6);
+        var mes=MNUM[mesNum]; if(!mes) return;
         var seq=parseInt(nro.substring(6));
-        var mes=MNUM[nro.substring(4,6)]; if(!mes) return;
+        // col[13]=Debe (movimiento del asiento, no saldo acumulado)
         var debe=parseFloat(row[13])||0; if(debe<=0) return;
         if(!porMes[mes]) porMes[mes]=[];
         porMes[mes].push({
           cta:ctaAct, nombre:nomAct, nro:nro, seq:seq, mes:mes,
-          tp:String(row[10]||'').trim(),
-          nro_doc:String(row[11]||'').trim(),
-          desc:String(row[12]||'').trim(),
-          debe:debe, auto:seq>1000
+          tp:String(row[10]||'').trim(),      // Tp. Documento
+          nro_doc:String(row[11]||'').trim(), // Nro. Documento
+          desc:String(row[12]||'').trim(),    // Descripción
+          debe:debe, auto:seq>1000            // auto = asiento automático
         });
       });
 
-      // Clasificar asientos por mes y categoría
+      // ── Paso 2: Clasificar asientos por mes y categoría ────────────
+      // IMPORTANTE: solo se resetean los meses que vienen en ESTE archivo.
+      // Si cargaste Ene-May antes y ahora cargas solo Junio,
+      // los datos de Ene-May en localStorage NO se tocan.
       Object.keys(porMes).forEach(function(mes){
+        // Tasa BCV promedio del mes — fuente única de conversión Bs.→USD
         var tasa=(STATE.bcvRates&&STATE.bcvRates[mes]&&STATE.bcvRates[mes].avg)||TF.TASAS[mes]||1;
         TF.TASAS[mes]=tasa;
         if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
         var V=TF.datos[mes].valores; var A=TF.datos[mes].asientos;
 
-        // Reset categorías del mayor (preservar valores manuales: nom_usd, prov_usd, fluct_cam, ret, imp_excel)
-        var CATS_MA=['sin_tot',
-                     'nom_sueldos','nom_cesta','nom_bonos','nom_otros',
-                     'comis_prod','impuestos','com_banc',
-                     'proc_datos','serv_bas','hon_prof','publicidad',
-                     'inmuebles','relaciones','otros_adm','gto_pres'];
-        CATS_MA.forEach(function(k){V[k]=0;A[k]=[];});
+        // Reset SOLO de las categorías que vienen del mayor analítico.
+        // Valores cargados manualmente (nom_usd, prov_usd, fluct_cam,
+        // ret_iva_islr, _div_*) se preservan.
+        var CATS_MAYOR=['sin_tot',
+                        'nom_sueldos','nom_cesta','nom_bonos','nom_otros',
+                        'comis_prod','impuestos','com_banc',
+                        'proc_datos','serv_bas','hon_prof','publicidad',
+                        'inmuebles','relaciones','otros_adm','gto_pres'];
+        CATS_MAYOR.forEach(function(k){V[k]=0; A[k]=[];});
 
         porMes[mes].forEach(function(a){
           // Normalización: '33210101030100000000000' → '33210101030100' (mismo que '3 321 01 01 03 01' sin espacios ni ceros)
@@ -4712,11 +4732,28 @@ function tfCargarMayor(evt){
 
       _tfLeerPrimasApp();
       try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
-      var mesesCarg=Object.keys(porMes).sort();
+
+      // Ordenar meses cronológicamente según el orden del año
+      var mesesCarg=Object.keys(porMes).sort(function(a,b){
+        return TF.MESES.indexOf(a)-TF.MESES.indexOf(b);
+      });
       var totalAs=mesesCarg.reduce(function(s,m){return s+porMes[m].length;},0);
-      if(status) status.innerHTML='✅ Mayor Analítico: <b>'+mesesCarg.join(', ')+'</b> · '+totalAs.toLocaleString()+' asientos clasificados';
+
+      // Detectar si es carga acumulada (varios meses) o mensual (un solo mes)
+      var esMensual=mesesCarg.length===1;
+      var modoLabel=esMensual
+        ?'mensual — <b>'+mesesCarg[0]+'</b>'
+        :'acumulado — <b>'+mesesCarg.join(', ')+'</b>';
+
+      if(status) status.innerHTML=
+        '✅ Mayor '+modoLabel
+        +' · '+totalAs.toLocaleString()+' asientos'
+        +(!esMensual
+          ?' <span style="font-size:8px;color:var(--td)">(meses anteriores preservados en localStorage)</span>'
+          :'');
+
       _tfActualizarEstadoCarga('mayor','✅ Mayor: '+mesesCarg.join(', '));
-      showToast('Mayor Analítico cargado: '+mesesCarg.join(', '));
+      showToast('Mayor '+(esMensual?mesesCarg[0]+' (mensual)':mesesCarg.length+' meses')+' cargado');
       _tfBuildSelector(); _tfRenderKPIs(); _tfRenderTabla();
     }catch(ex){
       if(status) status.innerHTML='❌ Error procesando Mayor: '+ex.message;
