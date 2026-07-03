@@ -4103,40 +4103,70 @@ var TF = {
   MESES: ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
           'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
   TASAS: {},
+  // ── Estructura IDÉNTICA al Flujo de Caja de Contabilidad ─────────
+  // Fuente: FLUJO_DE_CAJA_LA_FE_al_31-05-2026.xlsx — hoja "FLUJO DE CAJA $"
+  // Cada id mapea a una clave en TF.datos[mes].valores
+  // manual:true → el valor se carga manualmente (no del mayor analítico)
   ESTRUCTURA: [
-    { id:'ingr', lbl:'INGRESOS', tipo:'grupo', hijos:[
-      { id:'prima_ind',  lbl:'Prima Cobrada (balance contable)', tipo:'item', signo:1 },
-    ]},
-    { id:'total_ingr', lbl:'✦ TOTAL INGRESOS', tipo:'total_ingr' },
-    { id:'egr', lbl:'EGRESOS', tipo:'grupo', hijos:[
-      { id:'sin_tot',    lbl:'Siniestros Pagados (Mayor Analítico)', tipo:'item', signo:-1 },
-      { id:'nom_bs', lbl:'Nómina Personal (Bs.→USD)', tipo:'subgrupo', hijos:[
-        { id:'nom_sueldos', lbl:'Sueldos y Salarios',              tipo:'item', signo:-1 },
-        { id:'nom_cesta',   lbl:'Cesta Ticket',                     tipo:'item', signo:-1 },
-        { id:'nom_bonos',   lbl:'Bonificaciones / Vacaciones',      tipo:'item', signo:-1 },
-        { id:'nom_otros',   lbl:'Otros Gastos de Personal',         tipo:'item', signo:-1 },
-      ]},
-      { id:'comis_prod',  lbl:'Comisiones de Producción',          tipo:'item', signo:-1 },
-      { id:'gto_ops', lbl:'Gastos Operativos (Bs.→USD)', tipo:'subgrupo', hijos:[
-        { id:'proc_datos',  lbl:'Procesamiento de Datos',           tipo:'item', signo:-1 },
-        { id:'serv_bas',    lbl:'Servicios Básicos',                tipo:'item', signo:-1 },
-        { id:'hon_prof',    lbl:'Honorarios Profesionales',         tipo:'item', signo:-1 },
-        { id:'publicidad',  lbl:'Publicidad',                       tipo:'item', signo:-1 },
-        { id:'inmuebles',   lbl:'Gastos de Inmuebles',              tipo:'item', signo:-1 },
-        { id:'relaciones',  lbl:'Relaciones Públicas',              tipo:'item', signo:-1 },
-        { id:'otros_adm',   lbl:'Otros Gastos Administrativos',     tipo:'item', signo:-1 },
-      ]},
-      { id:'impuestos',   lbl:'Impuestos y Contribuciones',        tipo:'item', signo:-1 },
-      { id:'com_banc',    lbl:'Comisiones Bancarias',              tipo:'item', signo:-1 },
-      { id:'gto_div', lbl:'Gastos en Divisas (USD)', tipo:'subgrupo', hijos:[
-        { id:'nom_usd',    lbl:'Nómina Gerencial USD',             tipo:'item', signo:-1 },
-        { id:'prov_usd',   lbl:'Proveedores USD',                  tipo:'item', signo:-1 },
-        { id:'fluct_cam',  lbl:'Fluctuación Cambiaria',            tipo:'item', signo:-1 },
-      ]},
-      { id:'gto_pres',    lbl:'Gastos de Presidencia',             tipo:'item', signo:-1 },
-    ]},
-    { id:'total_egr', lbl:'✦ TOTAL EGRESOS',      tipo:'total_egr' },
-    { id:'saldo_fc',  lbl:'💰 SALDO FLUJO DE CAJA', tipo:'saldo'   },
+
+    // ── 1. INGRESOS ─────────────────────────────────────────────────
+    { id:'sec_ingr', lbl:'1.  INGRESOS', tipo:'seccion' },
+    { id:'prima_ind',   lbl:'Primas Cobradas — Cartera Individual',     tipo:'item', signo:1, fuente:'balance' },
+    { id:'prima_polar', lbl:'Prima Cobrada Grupo Polar (Alícuota)',     tipo:'item', signo:1, fuente:'manual' },
+    { id:'total_ingr',  lbl:'TOTAL INGRESOS',  tipo:'total_ingr' },
+
+    // ── 2. EGRESOS ──────────────────────────────────────────────────
+    { id:'sec_egr', lbl:'2.  EGRESOS', tipo:'seccion' },
+
+    // Gastos de Siniestros
+    { id:'sec_sin', lbl:'Gastos de Siniestros', tipo:'subseccion' },
+    { id:'sin_tot',     lbl:'Siniestros Pagados',                       tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'total_sin',   lbl:'Total Siniestros Incurridos', tipo:'subtotal', hijos:['sin_tot'] },
+    { id:'pct_sin',     lbl:'% Siniestralidad',            tipo:'porcentaje', num:'total_sin', den:'total_ingr' },
+
+    // Gastos de Comisiones
+    { id:'sec_com', lbl:'Gastos de Comisiones', tipo:'subseccion' },
+    { id:'comis_prod',  lbl:'Comisiones a Vendedores (3 381 01 15)',    tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'total_com',   lbl:'Total Comisiones',  tipo:'subtotal', hijos:['comis_prod'] },
+    { id:'pct_com',     lbl:'% Gasto de Comisiones', tipo:'porcentaje', num:'total_com', den:'total_ingr' },
+
+    // Gasto de Administración
+    { id:'sec_adm', lbl:'Gasto de Administración', tipo:'subseccion' },
+    { id:'otros_adm',   lbl:'Gastos de Administración (Bs.→USD)',       tipo:'item', signo:-1, fuente:'mayor',
+      nota:'3 381 01 exc.nómina/imp/comis/fluct/deprec/provis' },
+    { id:'nom_bs_tot',  lbl:'Nómina Personal (Bs.→USD)',                tipo:'item', signo:-1, fuente:'mayor',
+      nota:'3 381 01 01 — todos los asientos', _hijos:['nom_sueldos','nom_cesta','nom_bonos','nom_otros'] },
+    { id:'prov_usd',    lbl:'Anticipo a Proveedores',                   tipo:'item', signo:-1, fuente:'manual',
+      nota:'Pre-cargado del Excel · Editable · Modal Divisas actualiza' },
+    { id:'nom_usd',     lbl:'Nómina Gerentes',                          tipo:'item', signo:-1, fuente:'manual',
+      nota:'Pre-cargado del Excel · Editable · Modal Divisas actualiza' },
+    { id:'fluct_cam',   lbl:'Diferencial Cambiario',                    tipo:'item', signo:-1, fuente:'manual',
+      nota:'Pre-cargado del Excel · Calculado automático con Modal Divisas' },
+    { id:'impuestos',   lbl:'Impuestos (IVA, ISLR, SUDEASEG, Patente, IGTF)', tipo:'item', signo:-1, fuente:'manual',
+      nota:'Valores del Excel — carga manual por período' },
+    { id:'total_adm',   lbl:'Total Gasto de Administración',
+      tipo:'subtotal', hijos:['otros_adm','nom_bs_tot','prov_usd','nom_usd','fluct_cam','impuestos'] },
+    { id:'pct_adm',     lbl:'% Gasto Administración', tipo:'porcentaje', num:'total_adm', den:'total_ingr' },
+
+    // Costos Tributarios
+    { id:'sec_trib', lbl:'Costos Tributarios', tipo:'subseccion' },
+    { id:'ret_iva_islr', lbl:'Retenciones de IVA, ISLR e IAE',         tipo:'item', signo:-1, fuente:'manual',
+      nota:'Del reporte de retenciones — cuentas de pasivo' },
+    { id:'total_trib',  lbl:'Total Costos Tributarios', tipo:'subtotal', hijos:['ret_iva_islr'] },
+    { id:'pct_trib',    lbl:'% Costo Tributario', tipo:'porcentaje', num:'total_trib', den:'total_ingr' },
+
+    // Costo Bancario
+    { id:'sec_banc', lbl:'Costo Bancario', tipo:'subseccion' },
+    { id:'com_banc',    lbl:'Comisiones Bancarias (3 381 02)',          tipo:'item', signo:-1, fuente:'mayor' },
+    { id:'total_banc',  lbl:'Total Costo Bancario', tipo:'subtotal', hijos:['com_banc'] },
+    { id:'pct_banc',    lbl:'% Costo Bancario', tipo:'porcentaje', num:'total_banc', den:'total_ingr' },
+
+    // Totales
+    { id:'total_egr',   lbl:'TOTAL EGRESOS',        tipo:'total_egr' },
+    { id:'pct_egr',     lbl:'% Total Egresos',      tipo:'porcentaje', num:'total_egr', den:'total_ingr' },
+
+    // ── 3. SALDO ────────────────────────────────────────────────────
+    { id:'saldo_fc',    lbl:'💰 SALDO EN CAJA',     tipo:'saldo' },
   ],
   collapsed:{},
 };
@@ -4149,6 +4179,9 @@ function tfInit(){
     TF.MESES.forEach(function(m){ if(rates[m]&&rates[m].avg) TF.TASAS[m]=rates[m].avg; });
   }catch(e){}
   _tfLeerPrimasApp();
+  // Pre-cargar históricos Ene-May del Excel para campos manuales
+  // Se aplican solo si el usuario no ha ingresado valores propios
+  Object.keys(TF_HIST).forEach(function(mes){ _tfPrecargarHistoricos(mes); });
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -4221,24 +4254,77 @@ function _tfVal(id,mes){
   if(!TF.datos[mes]||!TF.datos[mes].valores) return 0;
   return TF.datos[mes].valores[id]||0;
 }
-function _tfMeses(){ return TF.MESES.filter(function(m){return TF.datos[m]&&Object.keys(TF.datos[m].valores||{}).length;}); }
+function _tfMeses(){
+  return TF.MESES.filter(function(m){return TF.datos[m]&&Object.keys(TF.datos[m].valores||{}).length;});
+}
 function _tfGet(id){
   if(TF.mesActivo==='acum') return _tfMeses().reduce(function(s,m){return s+_tfVal(id,m);},0);
   return _tfVal(id,TF.mesActivo);
 }
 
-function _tfCalcNodo(nodo,mes){
-  if(nodo.tipo==='item') return _tfVal(nodo.id,mes);
-  if(!nodo.hijos) return 0;
-  return nodo.hijos.reduce(function(s,h){return s+_tfCalcNodo(h,mes);},0);
+// Calcula el valor de un nodo para un mes dado
+// Soporta: item, subtotal, total_ingr, total_egr, saldo, porcentaje, seccion, subseccion
+function _tfCalcItem(id, mes){
+  return _tfVal(id, mes);
 }
-
+function _tfCalcSubtotal(hijos, mes){
+  return (hijos||[]).reduce(function(s,hid){ return s+Math.abs(_tfVal(hid,mes)); }, 0);
+}
 function _tfCalcTotalIngr(mes){
-  return TF.ESTRUCTURA[0].hijos.reduce(function(s,h){return s+_tfCalcNodo(h,mes);},0);
+  // Suma de todos los items con signo:1 en ESTRUCTURA
+  return _tfVal('prima_ind',mes)+_tfVal('prima_polar',mes);
 }
 function _tfCalcTotalEgr(mes){
-  return Math.abs(TF.ESTRUCTURA[2].hijos.reduce(function(s,h){return s+_tfCalcNodo(h,mes);},0));
+  // Total egresos = suma de todos los subtotales de secciones de egresos
+  return _tfCalcSubtotal(['sin_tot'],mes)
+       + _tfCalcSubtotal(['comis_prod'],mes)
+       + _tfCalcSubtotal(['otros_adm','nom_bs_tot','prov_usd','nom_usd','fluct_cam','impuestos'],mes)
+       + _tfCalcSubtotal(['ret_iva_islr'],mes)
+       + _tfCalcSubtotal(['com_banc'],mes);
 }
+// Valores históricas del Excel para impuestos y retenciones (Ene-May 2026)
+// Fuente: FLUJO_DE_CAJA_LA_FE_al_31-05-2026.xlsx
+// ── Históricos Ene-May 2026 — del Flujo de Caja de Contabilidad ─────
+// Fuente: FLUJO_DE_CAJA_LA_FE_al_31-05-2026.xlsx · hoja "FLUJO DE CAJA $"
+// Tasas BCV exactas (promedio diario): Ene=341.60 Feb=392.76 Mar=446.67 Abr=479.97 May=515.73
+var TF_HIST = {
+  // imp = Impuestos + ISLR Anual (F60+F61 del Excel)
+  // ret = Retenciones IVA/ISLR/IAE (F66)
+  // prov= Anticipo a Proveedores USD (F33)
+  // nger= Nómina Gerentes USD (F51)
+  // dif = Diferencial Cambiario (F52)
+  // ppol= Prima Grupo Polar (F11)
+  'Enero':   {imp:27630.89, ret:15211.07, prov:9173.60,  nger:16630, dif:13796.39, ppol:51418.60},
+  'Febrero': {imp:19004.25, ret:14922.94, prov:9173.60,  nger:12440, dif:5613.58,  ppol:51418.60},
+  'Marzo':   {imp:11517.37, ret:7942.46,  prov:9173.60,  nger:19640, dif:7840.94,  ppol:51418.60},
+  'Abril':   {imp:15115.36, ret:10985.73, prov:16958.40, nger:16120, dif:5206.88,  ppol:58273.67},
+  'Mayo':    {imp:21797.02, ret:12686.01, prov:8739.24,  nger:15380, dif:2957.19,  ppol:58619.98}
+};
+
+// Pre-carga históricos del Excel para todos los campos manuales
+// Regla: si el usuario NO ha marcado _xxx_manual, siempre se usa el histórico del Excel
+// Esto garantiza máximo cuadre con Contabilidad para los meses Ene-May 2026
+// Para meses futuros (Jun+) el usuario puede ingresar los valores manualmente
+function _tfPrecargarHistoricos(mes){
+  if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
+  var V=TF.datos[mes].valores;
+  var h=TF_HIST[mes];
+  if(!h) return; // mes futuro sin histórico — dejar en blanco para carga manual
+  // Impuestos: SIEMPRE del Excel salvo que el usuario haya editado manualmente
+  // (el mayor analítico solo captura parte; el Excel incluye todos los pagos)
+  if(!V['_imp_manual'])  V['impuestos']   =h.imp;
+  // Retenciones: SIEMPRE del Excel (cuentas de pasivo, no en mayor de egresos)
+  if(!V['_ret_manual'])  V['ret_iva_islr']=h.ret;
+  // Proveedores USD: del Excel si no hay carga manual del modal Divisas
+  if(!V['_prov_manual']) V['prov_usd']    =h.prov;
+  // Nómina Gerentes: del Excel si no hay carga manual del modal Divisas
+  if(!V['_nger_manual']) V['nom_usd']     =h.nger;
+  // Diferencial Cambiario: del Excel si no hay carga manual
+  if(!V['_dif_manual'])  V['fluct_cam']   =h.dif;
+  // Prima Polar: del Excel si no hay carga manual
+  if(!V['_ppol_manual']) V['prima_polar'] =h.ppol;
+}
+
 
 function _tfRenderKPIs(){
   var k=document.getElementById('tf-kpis');
@@ -4254,9 +4340,9 @@ function _tfRenderKPIs(){
   }
   var sl=ti-te; var ef=ti>0?te/ti*100:0;
 
-  // Siniestros y prima para siniestralidad
+  // Siniestralidad sobre TOTAL INGRESOS (prima_ind + prima_polar)
   var sinTot = _tfGet('sin_tot');
-  var prima  = _tfGet('prima_ind');
+  var prima  = ti; // total ingresos = prima individual + polar
   var comis  = _tfGet('comis_prod');
   var srTot  = prima>0 ? sinTot/prima*100 : 0;
   var costoSP= prima>0 ? (sinTot+comis)/prima*100 : 0;
@@ -4299,155 +4385,224 @@ function _tfRenderTabla(){
   if(!body) return;
   var meses=_tfMeses();
   if(!meses.length){
-    body.innerHTML='<div class="empty-state"><div class="ei">📂</div><div class="et">Sin datos cargados</div>'
+    body.innerHTML='<div class="empty-state"><div class="ei">📂</div>'
+      +'<div class="et">Sin datos cargados</div>'
       +'<div class="es">Carga el Mayor Analítico con el botón 📂 Mayor Analítico</div></div>';
     return;
   }
 
-  function fmtN(v){
-    if(!v||isNaN(v)) return '—';
+  // Pre-cargar históricos Ene-May del Excel para impuestos y retenciones
+  meses.forEach(function(m){ _tfPrecargarHistoricos(m); });
+
+  // Formateo numérico
+  function fmtN(v,pctMode){
+    if(pctMode){ return isNaN(v)||!isFinite(v)?'—':(v*100).toFixed(2)+'%'; }
+    if(!v&&v!==0) return '—';
     var abs=Math.abs(v);
     var s=abs.toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2});
-    return v<0?'('+s+')':s;
+    return v<0?'<span style="color:#B0190F">('+s+')</span>':s;
   }
-  function varStr(v){return (v>=0?'▲ +':'▼ ')+v.toFixed(1)+'%';}
+  function fmtPct(num,den){
+    return den>0?((num/den)*100).toFixed(2)+'%':'—';
+  }
 
-  // Cabeceras — columna concepto sticky
-  var hdrs='<th class="tf-col-concepto">Concepto</th><th style="width:28px;text-align:center" title="Marcar para accionistas">✓</th><th style="width:28px;text-align:center" title="Notas">📝</th>';
-  meses.forEach(function(m){hdrs+='<th class="tf-num" style="min-width:110px">'+m+'</th>';});
+  // Columnas: Concepto | Nro.Asiento (check) | Nota | Meses... | Acum | Var
+  var hdrs='<th class="tf-col-concepto">Concepto</th>'
+    +'<th style="width:26px;text-align:center;font-size:9px" title="Marcar revisado">✓</th>'
+    +'<th style="width:26px;text-align:center;font-size:9px" title="Notas">📝</th>';
+  meses.forEach(function(m){
+    hdrs+='<th class="tf-num" style="min-width:115px">'+m+'</th>';
+  });
   if(meses.length>1){
-    hdrs+='<th class="tf-num" style="background:#1A0F40;min-width:110px">Acumulado</th>';
-    hdrs+='<th class="tf-num" style="background:#1A0F40;min-width:90px">Var.Abs.</th>';
-    hdrs+='<th class="tf-num" style="background:#1A0F40;min-width:70px">Var.%</th>';
+    hdrs+='<th class="tf-num" style="background:#1A0F40;min-width:115px">Acumulado</th>';
+    hdrs+='<th class="tf-num" style="background:#1A0F40;min-width:80px">Últ.Var.%</th>';
   }
 
   var rows='';
 
   function notaBtns(id){
     var nota=TF.notas[id]||{};
-    return '<td style="width:28px;text-align:center"><input type="checkbox" '+(nota.checked?'checked':'')
-      +' onchange="tfToggleCheck(\''+id+'\'\u002Cthis.checked)" style="cursor:pointer;accent-color:var(--p)"></td>'
-      +'<td style="width:28px;text-align:center"><button class="tf-nota-btn '+(nota.texto?'has-nota':'')+'" onclick="tfAbrirNota(\''+id+'\')" title="'+(nota.texto||'Agregar nota')+'">'+( nota.texto?'📝':'💬')+'</button></td>';
+    return '<td style="width:26px;text-align:center">'
+      +'<input type="checkbox" '+(nota.checked?'checked':'')
+      +' onchange="tfToggleCheck(\''+id+'\',this.checked)" style="cursor:pointer;accent-color:var(--p)"></td>'
+      +'<td style="width:26px;text-align:center">'
+      +'<button class="tf-nota-btn '+(nota.texto?'has-nota':'')+'" '
+      +'onclick="tfAbrirNota(\''+id+'\')" title="'+(nota.texto||'Agregar nota')+'">'+
+      (nota.texto?'📝':'💬')+'</button></td>';
   }
 
+  // ── Fila de sección (encabezado de bloque) ───────────────────────
+  function filaSec(nodo){
+    var es_sub = nodo.tipo==='subseccion';
+    rows+='<tr style="background:'+(es_sub?'rgba(74,45,143,.06)':'rgba(74,45,143,.14)')+'">';
+    rows+='<td colspan="100%" style="padding:'+(es_sub?'5px 12px 5px '+(es_sub?'24px':'8px'):'6px 12px')
+      +';font-size:'+(es_sub?'9px':'10px')+';font-weight:700;color:'+(es_sub?'var(--ink2)':'var(--p)')
+      +';text-transform:uppercase;letter-spacing:.06em">'
+      +(es_sub?'&nbsp;&nbsp;&nbsp;':'')+nodo.lbl+'</td></tr>';
+  }
+
+  // ── Fila de ítem individual ──────────────────────────────────────
   function filaItem(nodo,indent){
-    var id=nodo.id; var nota=TF.notas[id]||{};
-    rows+='<tr id="tf-row-'+id+'">';
-    rows+='<td class="tf-col-concepto" style="padding-left:'+indent+'px">'+(nota.checked?'<span style="color:#0D7A4E;margin-right:3px">✅</span>':'')+nodo.lbl+'</td>';
+    var id=nodo.id;
+    var nota=TF.notas[id]||{};
+    var esManual=nodo.fuente==='manual'||nodo.fuente==='calc';
+    rows+='<tr id="tf-row-'+id+'" class="tf-row-item">';
+    rows+='<td class="tf-col-concepto" style="padding-left:'+(indent||16)+'px">'
+      +(nota.checked?'<span style="color:#0D7A4E;margin-right:3px">✅</span>':'')
+      +nodo.lbl
+      +(esManual?'<span style="font-size:7px;color:var(--td);margin-left:4px;background:rgba(0,0,0,.06);padding:1px 4px;border-radius:3px">'
+        +(nodo.fuente==='manual'?'manual':'calculado')+'</span>':'')
+      +(nodo.nota?'<span style="font-size:7px;color:var(--td);margin-left:4px" title="'+nodo.nota+'">ℹ</span>':'')
+      +'</td>';
     rows+=notaBtns(id);
-    var acum=0,va=0,vPrev=0;
+    var acum=0,vLast=0,vPrev=0;
     meses.forEach(function(m,i){
       var v=_tfVal(id,m); acum+=v;
       if(i===meses.length-2) vPrev=v;
-      if(i===meses.length-1) va=v;
-      var cl=v<0?'neg':v>0?'pos':'';
-      rows+='<td class="tf-num '+cl+'" onclick="tfVerDetalle(\''+id+'\',\''+m+'\')" style="cursor:pointer" title="Ver detalle · '+m+'">'+fmtN(v)+'</td>';
+      if(i===meses.length-1) vLast=v;
+      var abs=Math.abs(v);
+      var cl=v<0?'neg':'';
+      // Items manuales: mostrar input editable
+      if(esManual && nodo.fuente==='manual'){
+        rows+='<td class="tf-num" style="padding:2px 4px">'
+          +'<input type="number" step="0.01" value="'+(v||'')+'" placeholder="0.00" '
+          +'onchange="tfSetManual(\''+id+'\',\''+m+'\',this.value)" '
+          +'style="width:100%;padding:3px 6px;border:1px solid var(--br);border-radius:4px;'
+          +'font-size:10px;text-align:right;background:rgba(176,122,0,.06);font-weight:600;color:var(--ink2)">'
+          +'</td>';
+      } else {
+        var clickable=nodo.fuente==='mayor'?
+          ' onclick="tfVerDetalle(\''+id+'\',\''+m+'\')" style="cursor:pointer" title="Ver asientos · '+m+'"':'';
+        rows+='<td class="tf-num '+cl+'"'+clickable+'>'+fmtN(v)+'</td>';
+      }
     });
     if(meses.length>1){
-      var cl=acum<0?'neg':acum>0?'pos':'';
-      rows+='<td class="tf-num '+cl+'">'+fmtN(acum)+'</td>';
-      var dAbs=va-vPrev;
-      var dPct=vPrev!==0?(va-vPrev)/Math.abs(vPrev)*100:0;
-      rows+='<td class="tf-var '+(dAbs>=0?'pos':'neg')+'">'+fmtN(dAbs)+'</td>';
-      rows+='<td class="tf-var '+(dPct>=0?'pos':'neg')+'">'+varStr(dPct)+'</td>';
+      rows+='<td class="tf-num '+(acum<0?'neg':'')+'">'+fmtN(acum)+'</td>';
+      var dp=vPrev!==0?(vLast-vPrev)/Math.abs(vPrev)*100:0;
+      rows+='<td class="tf-var '+(dp>=0?'pos':'neg')+'">'+(isNaN(dp)?'—':(dp>=0?'▲ +':'▼ ')+dp.toFixed(1)+'%')+'</td>';
     }
     rows+='</tr>';
   }
 
-  function filaSubgrupo(nodo,indent){
-    var id=nodo.id; var col=TF.collapsed[id];
-    rows+='<tr class="tf-row-subtotal" id="tf-row-'+id+'">';
-    rows+='<td class="tf-col-concepto" style="padding-left:'+indent+'px">'
-      +'<span class="tf-toggle" onclick="tfToggle(\''+id+'\',event)">'+(col?'▶':'▼')+'</span>'
+  // ── Fila de subtotal de sección ──────────────────────────────────
+  function filaSubtotal(nodo){
+    var id=nodo.id;
+    var nota=TF.notas[id]||{};
+    rows+='<tr id="tf-row-'+id+'" class="tf-row-subtotal">';
+    rows+='<td class="tf-col-concepto" style="padding-left:16px;font-weight:700">'
+      +(nota.checked?'<span style="color:#0D7A4E;margin-right:3px">✅</span>':'')
       +nodo.lbl+'</td>';
     rows+=notaBtns(id);
-    var acum=0,va=0,vPrev=0;
+    var acum=0,vLast=0,vPrev=0;
     meses.forEach(function(m,i){
-      var v=_tfCalcNodo(nodo,m); acum+=v;
+      var v=_tfCalcSubtotal(nodo.hijos,m); acum+=v;
       if(i===meses.length-2) vPrev=v;
-      if(i===meses.length-1) va=v;
-      var cl=v<0?'neg':v>0?'pos':'';
-      rows+='<td class="tf-num '+cl+'">'+fmtN(v)+'</td>';
+      if(i===meses.length-1) vLast=v;
+      rows+='<td class="tf-num '+(v<0?'neg':'')+'">'+fmtN(v)+'</td>';
     });
     if(meses.length>1){
-      var cl=acum<0?'neg':acum>0?'pos':'';
-      rows+='<td class="tf-num '+cl+'">'+fmtN(acum)+'</td>';
-      var dAbs=va-vPrev; var dPct=vPrev!==0?(va-vPrev)/Math.abs(vPrev)*100:0;
-      rows+='<td class="tf-var '+(dAbs>=0?'pos':'neg')+'">'+fmtN(dAbs)+'</td>';
-      rows+='<td class="tf-var '+(dPct>=0?'pos':'neg')+'">'+varStr(dPct)+'</td>';
+      rows+='<td class="tf-num '+(acum<0?'neg':'')+'">'+fmtN(acum)+'</td>';
+      var dp=vPrev!==0?(vLast-vPrev)/Math.abs(vPrev)*100:0;
+      rows+='<td class="tf-var '+(dp>=0?'pos':'neg')+'">'+(isNaN(dp)?'—':(dp>=0?'▲ +':'▼ ')+dp.toFixed(1)+'%')+'</td>';
     }
     rows+='</tr>';
-    if(!col&&nodo.hijos) nodo.hijos.forEach(function(h){
-      if(h.tipo==='item') filaItem(h,indent+18);
-      else filaSubgrupo(h,indent+18);
-    });
   }
 
-  function filaGrupo(nodo){
-    var id=nodo.id; var col=TF.collapsed[id];
-    rows+='<tr class="tf-row-grupo" id="tf-row-'+id+'">';
-    rows+='<td class="tf-col-concepto"><span class="tf-toggle" onclick="tfToggle(\''+id+'\',event)">'+(col?'▶':'▼')+'</span>'+nodo.lbl+'</td>';
-    rows+=notaBtns(id);
-    var acum=0,va=0,vPrev=0;
-    meses.forEach(function(m,i){
-      var v=_tfCalcNodo(nodo,m); acum+=v;
-      if(i===meses.length-2) vPrev=v;
-      if(i===meses.length-1) va=v;
-      rows+='<td class="tf-num '+(v<0?'neg':v>0?'pos':'')+'">'+fmtN(v)+'</td>';
+  // ── Fila de porcentaje ───────────────────────────────────────────
+  function filaPorcentaje(nodo){
+    rows+='<tr class="tf-row-pct">';
+    rows+='<td class="tf-col-concepto" style="padding-left:16px;font-style:italic;font-size:9px;color:var(--td)">'+nodo.lbl+'</td>';
+    rows+='<td colspan="2"></td>';
+    var acumNum=0,acumDen=0;
+    meses.forEach(function(m){
+      var num = nodo.num==='total_ingr'?_tfCalcTotalIngr(m)
+               :nodo.num==='total_egr'?_tfCalcTotalEgr(m)
+               :_tfCalcSubtotal(
+                   nodo.num==='total_sin'?['sin_tot']
+                  :nodo.num==='total_com'?['comis_prod']
+                  :nodo.num==='total_adm'?['otros_adm','nom_bs_tot','prov_usd','nom_usd','fluct_cam','impuestos']
+                  :nodo.num==='total_trib'?['ret_iva_islr']
+                  :nodo.num==='total_banc'?['com_banc']:[]
+               ,m);
+      var den = _tfCalcTotalIngr(m);
+      acumNum+=num; acumDen+=den;
+      rows+='<td class="tf-num" style="font-style:italic;color:var(--td);font-size:9px">'+fmtPct(num,den)+'</td>';
     });
     if(meses.length>1){
-      rows+='<td class="tf-num '+(acum<0?'neg':acum>0?'pos':'')+'">'+fmtN(acum)+'</td>';
-      var dAbs=va-vPrev; var dPct=vPrev!==0?(va-vPrev)/Math.abs(vPrev)*100:0;
-      rows+='<td class="tf-var '+(dAbs>=0?'pos':'neg')+'">'+fmtN(dAbs)+'</td>';
-      rows+='<td class="tf-var '+(dPct>=0?'pos':'neg')+'">'+varStr(dPct)+'</td>';
+      rows+='<td class="tf-num" style="font-style:italic;color:var(--td);font-size:9px">'+fmtPct(acumNum,acumDen)+'</td>';
+      rows+='<td></td>';
     }
     rows+='</tr>';
-    if(!col&&nodo.hijos) nodo.hijos.forEach(function(h){
-      if(h.tipo==='item') filaItem(h,28);
-      else if(h.tipo==='subgrupo') filaSubgrupo(h,14);
-    });
   }
 
-  function filaTotSaldo(nodo){
-    var id=nodo.id;
-    var calcFn = nodo.tipo==='total_ingr'?_tfCalcTotalIngr
-               : nodo.tipo==='total_egr' ?_tfCalcTotalEgr
-               : function(m){return _tfCalcTotalIngr(m)-_tfCalcTotalEgr(m);};
-    var acum=0,va=0,vPrev=0;
-    var rowCls = nodo.tipo==='saldo'
-      ? 'tf-row-saldo '+(meses.reduce(function(s,m){return s+calcFn(m);},0)>=0?'pos':'neg')
-      : 'tf-row-total';
-    rows+='<tr class="'+rowCls+'" id="tf-row-'+id+'">';
+  // ── Fila de total general (TOTAL EGRESOS / SALDO) ────────────────
+  function filaTotGen(nodo){
+    var isSaldo = nodo.tipo==='saldo';
+    var isEgr   = nodo.tipo==='total_egr';
+    var isIngr  = nodo.tipo==='total_ingr';
+    var calcFn = isIngr ? _tfCalcTotalIngr
+               : isEgr  ? _tfCalcTotalEgr
+               : function(m){ return _tfCalcTotalIngr(m)-_tfCalcTotalEgr(m); };
+    var rowCls = isSaldo ? 'tf-row-saldo' : 'tf-row-total';
+    var acum=0,vLast=0,vPrev=0;
+    rows+='<tr id="tf-row-'+nodo.id+'" class="'+rowCls+'">';
     rows+='<td class="tf-col-concepto">'+nodo.lbl+'</td>';
-    rows+=notaBtns(id);
+    rows+='<td colspan="2"></td>';
     meses.forEach(function(m,i){
-      var v=calcFn(m); acum+=v;
+      var v=calcFn(m); if(isSaldo) v=_tfCalcTotalIngr(m)-_tfCalcTotalEgr(m);
+      acum+=v;
       if(i===meses.length-2) vPrev=v;
-      if(i===meses.length-1) va=v;
+      if(i===meses.length-1) vLast=v;
       rows+='<td class="tf-num '+(v<0?'neg':v>0?'pos':'')+'">'+fmtN(v)+'</td>';
     });
     if(meses.length>1){
       rows+='<td class="tf-num '+(acum<0?'neg':acum>0?'pos':'')+'">'+fmtN(acum)+'</td>';
-      var dAbs=va-vPrev; var dPct=vPrev!==0?(va-vPrev)/Math.abs(vPrev)*100:0;
-      rows+='<td class="tf-var '+(dAbs>=0?'pos':'neg')+'">'+fmtN(dAbs)+'</td>';
-      rows+='<td class="tf-var '+(dPct>=0?'pos':'neg')+'">'+varStr(dPct)+'</td>';
+      var dp=vPrev!==0?(vLast-vPrev)/Math.abs(vPrev)*100:0;
+      rows+='<td class="tf-var '+(dp>=0?'pos':'neg')+'">'+(isNaN(dp)?'—':(dp>=0?'▲ +':'▼ ')+dp.toFixed(1)+'%')+'</td>';
     }
     rows+='</tr>';
   }
 
+  // ── Renderizar cada nodo de la ESTRUCTURA ───────────────────────
   TF.ESTRUCTURA.forEach(function(nodo){
-    if(nodo.tipo==='grupo') filaGrupo(nodo);
-    else filaTotSaldo(nodo);
+    switch(nodo.tipo){
+      case 'seccion':    filaSec(nodo);          break;
+      case 'subseccion': filaSec(nodo);          break;
+      case 'item':       filaItem(nodo,20);      break;
+      case 'subtotal':   filaSubtotal(nodo);     break;
+      case 'porcentaje': filaPorcentaje(nodo);   break;
+      case 'total_ingr': filaTotGen(nodo);       break;
+      case 'total_egr':  filaTotGen(nodo);       break;
+      case 'saldo':      filaTotGen(nodo);       break;
+    }
   });
 
-  var tabla='<div class="tf-wrap"><table class="tf-table">'
+  var tabla='<div class="tf-wrap"><table class="tf-table" style="width:100%;border-collapse:collapse">'
     +'<thead><tr>'+hdrs+'</tr></thead>'
     +'<tbody>'+rows+'</tbody>'
     +'</table></div>';
   body.innerHTML=tabla;
-  // Agregar gráficos
   _tfAppendGraficos(body,meses);
 }
+
+// Permite editar manualmente cualquier ítem del flujo de caja
+// Al editar, se marca la bandera _xxx_manual para que _tfPrecargarHistoricos
+// no sobreescriba el valor ingresado por el usuario en sesiones futuras
+function tfSetManual(id, mes, val){
+  if(!TF.datos[mes]) TF.datos[mes]={valores:{},asientos:{}};
+  var v=parseFloat(val)||0;
+  TF.datos[mes].valores[id]=v;
+  // Flags de edición manual — preservan valor del usuario sobre histórico
+  var flags={
+    impuestos:'_imp_manual', ret_iva_islr:'_ret_manual',
+    prov_usd:'_prov_manual', nom_usd:'_nger_manual',
+    fluct_cam:'_dif_manual', prima_polar:'_ppol_manual'
+  };
+  if(flags[id]) TF.datos[mes].valores[flags[id]]=true;
+  try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
+  _tfRenderKPIs();
+}
+
 
 function _tfAppendGraficos(body,meses){
   if(!meses||meses.length<2) return;
@@ -4666,10 +4821,9 @@ function tfCargarMayor(evt){
         // Valores cargados manualmente (nom_usd, prov_usd, fluct_cam,
         // ret_iva_islr, _div_*) se preservan.
         var CATS_MAYOR=['sin_tot',
-                        'nom_sueldos','nom_cesta','nom_bonos','nom_otros',
+                        'nom_bs_tot','nom_sueldos','nom_cesta','nom_bonos','nom_otros',
                         'comis_prod','impuestos','com_banc',
-                        'proc_datos','serv_bas','hon_prof','publicidad',
-                        'inmuebles','relaciones','otros_adm','gto_pres'];
+                        'otros_adm'];
         CATS_MAYOR.forEach(function(k){V[k]=0; A[k]=[];});
 
         porMes[mes].forEach(function(a){
@@ -4694,21 +4848,28 @@ function tfCargarMayor(evt){
           if(mc('3 321 01 01')||mc('3 301 01 01')){add('sin_tot','Siniestros');return;}
           if(mc('3 321 09 01 01 01')&&a.auto&&a.tp==='EGRESO'){add('sin_tot','Sin.NueveOnce');return;}
 
-          // ── R4: NÓMINA PERSONAL — TODOS con debe>0 (ítem exclusivo) ─
-          if(mc('3 381 01 01 01')){add('nom_sueldos','Sueldos');return;}
-          if(mc('3 381 01 01 08')){add('nom_cesta','CestaTicket');return;}
+          // ── R4: NÓMINA PERSONAL — TODOS con debe>0 ──────────────────
+          // Consolidado en nom_bs_tot para la ESTRUCTURA (ítem único visible)
+          // Sub-cuentas guardadas en asientos para detalle al hacer clic
+          if(mc('3 381 01 01 01')){add('nom_sueldos','Sueldos');
+            V['nom_bs_tot']=(V['nom_bs_tot']||0)+a.debe/tasa; return;}
+          if(mc('3 381 01 01 08')){add('nom_cesta','CestaTicket');
+            V['nom_bs_tot']=(V['nom_bs_tot']||0)+a.debe/tasa; return;}
           if(mc('3 381 01 01 02')||mc('3 381 01 01 03')||mc('3 381 01 01 04')||
-             mc('3 381 01 01 05')||mc('3 381 01 01 06')){add('nom_bonos','Bonif/Vac');return;}
-          if(mc('3 381 01 01')){add('nom_otros','OtrosPersonal');return;}
+             mc('3 381 01 01 05')||mc('3 381 01 01 06')){add('nom_bonos','Bonif/Vac');
+            V['nom_bs_tot']=(V['nom_bs_tot']||0)+a.debe/tasa; return;}
+          if(mc('3 381 01 01')){add('nom_otros','OtrosPersonal');
+            V['nom_bs_tot']=(V['nom_bs_tot']||0)+a.debe/tasa; return;}
 
           // ── R8: COMISIONES BANCARIAS — TODOS incl. manuales (NOTAS)──
           if(mc('3 381 02')){add('com_banc','ComBancaria');return;}
 
-          // ── R3: COMISIONES VENDEDORES — TODOS (manuales+auto) ───────
+          // ── R3: COMISIONES VENDEDORES — TODOS con debe>0 ─────────────
           if(mc('3 381 01 15')){add('comis_prod','ComisVendedor');return;}
 
-          // ── R6: IMPUESTOS — excluir provisiones sin comprobante ──────
-          // Provisión: tp==='' y descripción contiene "Previsión/Provision"
+          // ── R6: IMPUESTOS — solo del mayor (complementar con carga manual)
+          // El mayor captura pagos reales; el Excel también incluye pagos
+          // directos de ISLR anual, SUDEASEG, Patente que se cargan manualmente
           if(mc('3 381 01 02')){
             var PK=['PREVISION','PREVISIÓN','PROVISION','PROVISIÓN','REGISTRO DE LAS PREVISIONES',
                     'REGISTRO DE LAS CONTRIBUCIONES'];
@@ -4717,15 +4878,20 @@ function tfCargarMayor(evt){
             return;
           }
 
-          // ── Excluir partidas no monetarias (no salen del banco) ──────
-          if(mc('3 381 04')) return; // fluctuación cambiaria — asiento contable, no bancario
+          // ── Excluir partidas no monetarias ───────────────────────────
+          if(mc('3 381 04')) return; // fluct.cambiaria — asiento contable, no bancario
           if(mc('3 381 06')) return; // depreciación — no es salida de caja
           if(mc('3 381 07')) return; // provisiones técnicas — no es salida de caja
 
-          // ── R5: GASTOS ADMIN — resto de 3 381 01 ────────────────────
-          if(mc('3 381 01 16 08')){add('gto_pres','Presidencia');return;}
+          // ── R5: GASTOS ADMIN — resto de 3 381 01 ─────────────────────
+          // EXCLUIR tipo INGRESOS: cobros de prima contabilizados en esta cuenta
+          if(a.tp==='INGRESOS') return;
+          // EXCLUIR previsiones administrativas sin comprobante de pago
+          var PREV_KW=['PREVISION','PREVISIÓN','PROVISION','PROVISIÓN'];
+          var esPrevAdm=a.tp===''&&PREV_KW.some(function(k){return a.desc.toUpperCase().indexOf(k)>=0;});
+          if(esPrevAdm) return;
           if(mc('3 381 01')){add('otros_adm','GtoAdmin');return;}
-          // Gastos directos por ramo: vida_g (3 301 09 01), fi_g (3 321 03 01)
+          // Gastos directos por ramo (vida_g: 3 301 09 01, fi_g: 3 321 03 01)
           if(mc('3 301 09 01')||mc('3 321 03 01')){add('otros_adm','GtoAdmRamo');return;}
         });
       });
@@ -4824,17 +4990,17 @@ var TF_FLUCT_HIST = {
 // ── Modal de Divisas / Nómina USD ────────────────────────────────────
 function tfAbrirModalDivisas(){
   var mes=TF.mesActivo;
-  // Pre-cargar tasa BCV del mes activo
+  if(!mes||mes==='acum'){showToast('Selecciona un mes específico primero');return;}
+  // Tasa BCV del mes activo
   var bcv=(STATE.bcvRates&&STATE.bcvRates[mes]&&STATE.bcvRates[mes].avg)||TF.TASAS[mes]||515.73;
   var el=document.getElementById('tf-div-tasa-bcv');
   if(el) el.value=bcv.toFixed(4);
-  // Pre-cargar histórico si existe
-  if(TF_FLUCT_HIST[mes]){
-    var h=TF_FLUCT_HIST[mes];
-    var eu=document.getElementById('tf-div-tasa-usdt');
-    if(eu&&!eu.value) eu.value=h.usdt.toFixed(2);
+  // Tasa USDT: del histórico TF_HIST o del TF_FLUCT_HIST
+  var h=TF_HIST[mes]; var fh=TF_FLUCT_HIST[mes];
+  var eu=document.getElementById('tf-div-tasa-usdt');
+  if(eu&&!eu.value){
+    if(fh) eu.value=fh.usdt.toFixed(2);
   }
-  // Cargar conceptos ya guardados si los hay
   _tfDivRenderConceptos(mes);
   tfDivRecalcular();
   document.getElementById('tf-divisas-modal').style.display='flex';
@@ -4842,16 +5008,19 @@ function tfAbrirModalDivisas(){
 
 function _tfDivRenderConceptos(mes){
   var V=(TF.datos[mes]||{}).valores||{};
+  var h=TF_HIST[mes]||{};
   var cont=document.getElementById('tf-div-conceptos');
   if(!cont) return;
-  // Si ya hay datos guardados, mostrarlos; sino, mostrar 2 conceptos por defecto
-  var conceptosGuardados=V['_div_conceptos']||null;
-  if(conceptosGuardados){
+  var saved=V['_div_conceptos']||null;
+  if(saved&&saved.length){
     cont.innerHTML='';
-    conceptosGuardados.forEach(function(c,i){ cont.innerHTML+=_tfDivConceptoHTML(i,c.desc,c.usd); });
+    saved.forEach(function(c,i){ cont.innerHTML+=_tfDivConceptoHTML(i,c.desc,c.usd); });
   } else {
-    cont.innerHTML=_tfDivConceptoHTML(0,'Nómina Gerencial',V['nom_usd']||0)
-                  +_tfDivConceptoHTML(1,'Proveedores USD',V['prov_usd']||0);
+    // Pre-cargar con histórico del Excel si existen
+    var nger=V['nom_usd']||h.nger||0;
+    var prov=V['prov_usd']||h.prov||0;
+    cont.innerHTML=_tfDivConceptoHTML(0,'Nómina Gerencial',nger)
+                  +_tfDivConceptoHTML(1,'Anticipo a Proveedores USD',prov);
   }
 }
 
@@ -4955,18 +5124,19 @@ function tfDivGuardar(){
   V['_div_bcv']=p.bcv;
   V['_div_usdt']=p.usdt;
 
-  // Distribuir conceptos en categorías
+  // Distribuir conceptos en categorías: nómina vs proveedores
   V['nom_usd']=0; V['prov_usd']=0;
   p.conceptos.forEach(function(c){
     var desc_l=c.desc.toLowerCase();
-    if(desc_l.indexOf('nómina')>=0||desc_l.indexOf('nomina')>=0||desc_l.indexOf('gerente')>=0)
+    if(desc_l.indexOf('nóm')>=0||desc_l.indexOf('nom')>=0||desc_l.indexOf('gerente')>=0)
       V['nom_usd']=(V['nom_usd']||0)+c.usd;
     else
       V['prov_usd']=(V['prov_usd']||0)+c.usd;
   });
-
   // R10: Fluctuación cambiaria = total × (USDT - BCV) / BCV
   V['fluct_cam']=p.fluct;
+  // Marcar como ingresado manualmente — no sobreescribir con histórico
+  V['_nger_manual']=true; V['_prov_manual']=true; V['_dif_manual']=true;
 
   try{localStorage.setItem('slf_tesoreria_datos',JSON.stringify(TF.datos));}catch(e){}
   document.getElementById('tf-divisas-modal').style.display='none';
@@ -4976,14 +5146,14 @@ function tfDivGuardar(){
 }
 
 function tfLimpiarDatos(){
-  if(!confirm('¿Limpiar todos los datos del flujo de caja? Esta acción no se puede deshacer.')) return;
+  if(!confirm('¿Limpiar todos los datos del flujo de caja?\nSe borrarán los datos del mayor analítico.\nLos históricos del Excel se re-cargarán automáticamente.\n\nEsta acción no se puede deshacer.')) return;
   TF.datos={};
   try{localStorage.removeItem('slf_tesoreria_datos');}catch(e){}
   _tfBuildSelector(); _tfRenderKPIs(); _tfRenderTabla();
   var st=document.getElementById('tf-load-status');
-  if(st) st.innerHTML='🗑 Datos limpiados';
+  if(st) st.innerHTML='🗑 Datos limpiados — recarga el Mayor Analítico';
   _tfActualizarEstadoCarga('all','');
-  showToast('Datos del flujo de caja limpiados');
+  showToast('Mayor analítico limpiado · Históricos del Excel se pre-cargarán al recargar');
 }
 
 function _tfActualizarEstadoCarga(modulo, texto){
